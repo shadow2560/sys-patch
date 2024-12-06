@@ -712,7 +712,7 @@ if (!rc) {
             }
             char *pos = strchr(line_trim, '=');
             if (pos != NULL) {
-                *pos = '\0';  // Séparer clé et valeur
+                *pos = '\0';
                 trim(line_trim);
                 if ((strcmp(actual_section, "options") == 0) && (strcmp(line_trim, "patch_sysmmc") == 0 || strcmp(line_trim, "patch_emummc") == 0 || strcmp(line_trim, "enable_logging") == 0 || strcmp(line_trim, "version_skip") == 0 || strcmp(line_trim, "clean_config") == 0)) {
                     memset(line_trim, '\0', line_trim_alloc);
