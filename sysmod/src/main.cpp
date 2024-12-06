@@ -667,9 +667,8 @@ if (!rc) {
                 line_trim_alloc += buffer_length;
                 line_trim = (char*) realloc(line_trim, line_trim_alloc);
                 if (!line_trim) {
-                ini_remove(temp_path);
                 if (actual_section) free(actual_section);
-                free(line_trim);
+                if (line_trim) free(line_trim);
                 ini_close(&file);
                 return false;
                 }
@@ -776,7 +775,7 @@ if (!rc) {
                 if (!line_trim) {
                 ini_remove(temp_path);
                 if (actual_section) free(actual_section);
-                free(line_trim);
+                if (line_trim) free(line_trim);
                 ini_close(&file);
                 return false;
                 }
@@ -826,6 +825,13 @@ char* value = pos + 1;
                 if ((strcmp(actual_section, "options") == 0) && (strcmp(line_trim, "patch_sysmmc") == 0 || strcmp(line_trim, "patch_emummc") == 0 || strcmp(line_trim, "enable_logging") == 0 || strcmp(line_trim, "version_skip") == 0 || strcmp(line_trim, "clean_config") == 0)) {
                     if (ini_puts(actual_section, line_trim, value, temp_path) == 0) {
                         ini_remove(temp_path);
+                        ini_close(&file);
+                        if (line_trim) {
+                            free(line_trim);
+                        }
+                        if (actual_section) {
+                            free(actual_section);
+                        }
                         return false;
                     }
                     memset(line_trim, '\0', line_trim_alloc);
@@ -845,6 +851,13 @@ char* value = pos + 1;
                 if (keep_config) {
                     if (ini_puts(actual_section, line_trim, value, temp_path) == 0) {
                         ini_remove(temp_path);
+                        ini_close(&file);
+                        if (line_trim) {
+                            free(line_trim);
+                        }
+                        if (actual_section) {
+                            free(actual_section);
+                        }
                         return false;
                     }
                 } else {
