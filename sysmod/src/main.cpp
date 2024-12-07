@@ -633,7 +633,7 @@ void trim(char* str) {
 		memmove(str, start, len - (start - str) + 1);
 }
 
-bool clean_config_file() {
+int clean_config_file() {
     ini_remove(temp_path);
     NxFile file;
     bool rc=ini_openread(ini_path, &file);
@@ -641,7 +641,7 @@ bool clean_config_file() {
     char *line_trim = {};
     char *actual_section = {};
 if (!rc) {
-        return false;
+        return 1;
     }
     bool need_rewrite = false;
     bool keep_section = false;
@@ -656,7 +656,7 @@ if (!rc) {
             line_trim = (char*) calloc(1, line_trim_alloc);
             if (!line_trim) {
                 ini_close(&file);
-                return false;
+                return -1;
             }
             first_line_init = true;
         }
@@ -670,7 +670,7 @@ if (!rc) {
                 if (actual_section) free(actual_section);
                 if (line_trim) free(line_trim);
                 ini_close(&file);
-                return false;
+                return -1;
                 }
                 count_buff_line_passed++;
             }
@@ -737,6 +737,7 @@ if (!rc) {
         }
         memset(line_trim, '\0', line_trim_alloc);
     }
+    ini_close(&file);
     if (line_trim) {
         free(line_trim);
     }
@@ -745,145 +746,41 @@ if (!rc) {
     }
 
     if (!need_rewrite) {
-        ini_close(&file);
-        return true;
+        return 0;
     }
 
-    line_trim = {};
-    actual_section = {};
-    keep_section = false;
-    keep_config = false;
-    first_line_init = false;
-    count_buff_line_passed = 0;
-    z = 0;
-    file.offset = 0;
-    while (ini_read2(line, buffer_length, &file)) {
-        if (!first_line_init) {
-            line_trim = (char*) calloc(1, line_trim_alloc);
-            if (!line_trim) {
-                ini_close(&file);
-                return false;
-            }
-            first_line_init = true;
-        }
-        strcat(line_trim, line);
-        if ((line_trim[strlen(line_trim) - 1] != '\r' && line_trim[strlen(line_trim) - 1] != '\n') && strlen(line_trim) > 0) {
-            z++;
-            if (z > count_buff_line_passed) {
-                line_trim_alloc += buffer_length;
-                line_trim = (char*) realloc(line_trim, line_trim_alloc);
-                if (!line_trim) {
-                ini_remove(temp_path);
-                if (actual_section) free(actual_section);
-                if (line_trim) free(line_trim);
-                ini_close(&file);
-                return false;
-                }
-                count_buff_line_passed++;
-            }
-            continue;
-        }
-        z = 0;
-        trim(line_trim);
-        if (line_trim[0] == '\0' || line_trim[0] == ';') {
-            memset(line_trim, '\0', line_trim_alloc);
-            continue;
-        }
-        if (line_trim[0] == '[' && line_trim[strlen(line_trim) - 1] == ']') {
-            keep_section = false;
-            line_trim[strlen(line_trim) - 1] = '\0';
-            if (actual_section) {
-                free(actual_section);
-            }
-            actual_section = strdup(line_trim + 1);
-            if (strcmp(actual_section, "options") == 0) {
-                keep_section = true;
-                memset(line_trim, '\0', line_trim_alloc);
-                continue;
-            }
-            for (auto& patch : patches) {
-                if (strcmp(patch.name, actual_section) == 0) {
-                    keep_section = true;
-                    break;
-                }
-            }
-            if (!keep_section) {
-                ini_puts("clean_config_file", actual_section, "section deleted", log_path);
-            }
-        } else {
-            keep_config = false;
-            if (!keep_section) {
-                memset(line_trim, '\0', line_trim_alloc);
-                continue;
-            }
-            char *pos = strchr(line_trim, '=');
-            if (pos != NULL) {
-                *pos = '\0';
-char* value = pos + 1;
-                trim(line_trim);
-                trim(value);
-                if ((strcmp(actual_section, "options") == 0) && (strcmp(line_trim, "patch_sysmmc") == 0 || strcmp(line_trim, "patch_emummc") == 0 || strcmp(line_trim, "enable_logging") == 0 || strcmp(line_trim, "version_skip") == 0 || strcmp(line_trim, "clean_config") == 0)) {
-                    if (ini_puts(actual_section, line_trim, value, temp_path) == 0) {
-                        ini_remove(temp_path);
-                        ini_close(&file);
-                        if (line_trim) {
-                            free(line_trim);
-                        }
-                        if (actual_section) {
-                            free(actual_section);
-                        }
-                        return false;
-                    }
-                    memset(line_trim, '\0', line_trim_alloc);
-                    continue;
-                }
-                for (auto& patch : patches) {
-                    for (auto& p : patch.patterns) {
-                        if (strcmp(p.patch_name, line_trim) == 0) {
-                            keep_config = true;
-                            break;
-                        }
-                    }
-                    if (keep_config) {
-                        break;
-                    }
-                }
-                if (keep_config) {
-                    if (ini_puts(actual_section, line_trim, value, temp_path) == 0) {
-                        ini_remove(temp_path);
-                        ini_close(&file);
-                        if (line_trim) {
-                            free(line_trim);
-                        }
-                        if (actual_section) {
-                            free(actual_section);
-                        }
-                        return false;
-                    }
-                } else {
-                    char*  concat_for_log = (char*) malloc(strlen(actual_section) + strlen(line_trim) + 3);;
-                    if (concat_for_log) {
-                        strcpy(concat_for_log, actual_section);
-                        strcat(strcat(strcat(concat_for_log, "["), line_trim), "]");
-                        ini_puts("clean_config_file", concat_for_log, "config deleted", log_path);
-                        free(concat_for_log);
-                    }
-                }
-            }
-        }
-        memset(line_trim, '\0', line_trim_alloc);
+    bool user_val = ini_getbool("options", "patch_sysmmc", 1, ini_path);
+    if (ini_putl("options", "patch_sysmmc", user_val, temp_path) == 0) {
+        return -1;
+    }
+    user_val = ini_getbool("options", "patch_emummc", 1, ini_path);
+    if (ini_putl("options", "patch_emummc", user_val, temp_path) == 0) {
+        return -1;
+    }
+    user_val = ini_getbool("options", "enable_logging", 1, ini_path);
+    if (ini_putl("options", "enable_logging", user_val, temp_path) == 0) {
+        return -1;
+    }
+    user_val = ini_getbool("options", "version_skip", 1, ini_path);
+    if (ini_putl("options", "version_skip", user_val, temp_path) == 0) {
+        return -1;
+    }
+    user_val = ini_getbool("options", "clean_config", 1, ini_path);
+    if (ini_putl("options", "clean_config", user_val, temp_path) == 0) {
+        return -1;
     }
 
-    ini_close(&file);
-    if (line_trim) {
-        free(line_trim);
-    }
-    if (actual_section) {
-        free(actual_section);
+    for (auto& patch : patches) {
+        for (auto& p : patch.patterns) {
+            user_val = ini_getbool(patch.name, p.patch_name, p.enabled, ini_path);
+            if (ini_putl(patch.name, p.patch_name, user_val, temp_path) == 0) {
+                return -1;
+            }
+        }
     }
     ini_remove(ini_path);
 ini_rename(temp_path, ini_path);
-    return true;
+    return 1;
 }
 
 } // namespace
@@ -901,10 +798,13 @@ int main(int argc, char* argv[]) {
     CLEAN_CONFIG = ini_load_or_write_default("options", "clean_config", 1, ini_path);
 
     if (CLEAN_CONFIG) {
-        if (!clean_config_file()) {
-            ini_puts("clean_config_file", "error", "clean config failed", log_path);
+        int rc = clean_config_file();
+        if (rc == 0) {
+            ini_puts("clean_config_file", "result", "not needed", log_path);
+        } else if (rc == 1) {
+            ini_puts("clean_config_file", "result", "cleaned", log_path);
         } else {
-            ini_puts("clean_config_file", "Success", "clean config success", log_path);
+            ini_puts("clean_config_file", "result", "error during clean", log_path);
         }
     }
 
