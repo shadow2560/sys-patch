@@ -678,7 +678,7 @@ if (!rc) {
         }
         z = 0;
         trim(line_trim);
-        if (line_trim[0] == '\0' || line_trim[0] == ';') {
+        if (line_trim[0] == '\0' || line_trim[0] == ';' || line_trim[0] == '\n' || line_trim[0] == '\r') {
             memset(line_trim, '\0', line_trim_alloc);
             continue;
         }
