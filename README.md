@@ -1,6 +1,6 @@
 # sys-patch
 
-A script-like system module that patches **fs**, **es**, **ldr**, **nifm** and **nim** on boot.
+A script-like system module that patches **fs**, **es**, **ldr**, **nifm**, **nim** and **erpt** on boot.
 
 ---
 
@@ -18,6 +18,11 @@ enable_logging=1 ; 1=(default) output /config/sys-patch/log.ini 0=no log
 version_skip=1   ; 1=(default) skips out of date patterns, 0=search all patterns
 clean_config=1 ; 1=(default) clean the config file 0=don't clean the config file
 ```
+
+Note:
+* Please don't use default disabled patches except if you know what you're doing.
+* The patches debug_flag_on and debug_flag_off can be used to launch old forwarders (debug_flag_on) but it can cause some problem so disable it when you don't need it or enable debug_flag_off and disable debug_flag_on and launch the module Sys-patch via a tool like Sys-modules overlay then disable debug_flag_off patch to be sure it will not be unusfuly used when launching Sys-patch next time.
+* The patch no_erpt can be used to disable erpt service but use it only if you know what you're doing.
 
 ---
 

@@ -161,6 +161,10 @@ constexpr auto subs_cond(u32 inst) -> bool {
     return subi_cond(inst) || subr_cond(inst);
 }
 
+constexpr auto no_cond(u32 inst) -> bool {
+    return true;
+}
+
 constexpr auto cbz_cond(u32 inst) -> bool {
     const auto type = inst >> 24;
     return type == 0x34 || type == 0xB4;
@@ -208,6 +212,8 @@ constexpr auto ctest_cond(u32 inst) -> bool {
     return std::byteswap(0xF50301AA) == inst; // mov x21, x1
 }
 
+
+
 // to view patches, use https://armconverter.com/?lock=arm64
 constexpr PatchData ret0_patch_data{ "0xE0031F2A" };
 constexpr PatchData ret1_patch_data{ "0x10000014" };
@@ -219,6 +225,9 @@ constexpr PatchData mov2_patch_data{ "0xE2031FAA" };
 constexpr PatchData ssl1_patch_data{ "0x0A" };
 constexpr PatchData ssl2_patch_data{ "0x08008052" };
 constexpr PatchData ctest_patch_data{ "0x00309AD2001EA1F2610100D4E0031FAAC0035FD6" };
+constexpr PatchData erpt_patch_data{ "0xE0031F2AC0035FD6" };
+constexpr PatchData debug_flag_on_patch_data{ "0xC9F8FF54" }; // b.ls #0xffffffffffffff18
+constexpr PatchData debug_flag_off_patch_data{ "0x29FAFF54" };
 
 constexpr auto ret0_patch(u32 inst) -> PatchData { return ret0_patch_data; }
 constexpr auto ret1_patch(u32 inst) -> PatchData { return ret1_patch_data; }
@@ -229,6 +238,9 @@ constexpr auto mov2_patch(u32 inst) -> PatchData { return mov2_patch_data; }
 constexpr auto ssl1_patch(u32 inst) -> PatchData { return ssl1_patch_data; }
 constexpr auto ssl2_patch(u32 inst) -> PatchData { return ssl2_patch_data; }
 constexpr auto ctest_patch(u32 inst) -> PatchData { return ctest_patch_data; }
+constexpr auto erpt_patch(u32 inst) -> PatchData { return erpt_patch_data; }
+constexpr auto debug_flag_on_patch(u32 inst) -> PatchData { return debug_flag_on_patch_data; }
+constexpr auto debug_flag_off_patch(u32 inst) -> PatchData { return debug_flag_off_patch_data; }
 
 constexpr auto b_patch(u32 inst) -> PatchData {
     const u32 opcode = 0x14 << 24;
@@ -280,6 +292,18 @@ constexpr auto ctest_applied(const u8* data, u32 inst) -> bool {
     return ctest_patch(inst).cmp(data);
 }
 
+constexpr auto erpt_applied(const u8* data, u32 inst) -> bool {
+        return erpt_patch(inst).cmp(data);
+}
+
+constexpr auto debug_flag_on_applied(const u8* data, u32 inst) -> bool {
+    return debug_flag_on_patch(inst).cmp(data);
+}
+
+constexpr auto debug_flag_off_applied(const u8* data, u32 inst) -> bool {
+    return debug_flag_off_patch(inst).cmp(data);
+}
+
 constinit Patterns fs_patterns[] = {
     { "noacidsigchk1", "0xC8FE4739", -24, 0, bl_cond, ret0_patch, ret0_applied, true, FW_VER_ANY, MAKEHOSVERSION(9,2,0) },
     { "noacidsigchk2", "0x0210911F000072", -5, 0, bl_cond, ret0_patch, ret0_applied, true, FW_VER_ANY, MAKEHOSVERSION(9,2,0) },
@@ -291,6 +315,8 @@ constinit Patterns fs_patterns[] = {
 
 constinit Patterns ldr_patterns[] = {
     { "noacidsigchk", "0xFD7B.A8C0035FD6", 16, 2, subs_cond, subs_patch, subs_applied, true, FW_VER_ANY },
+    { "debug_flag_on", "0x6022403900010035", -4, 0, no_cond, debug_flag_on_patch, debug_flag_on_applied, false, FW_VER_ANY },
+    { "debug_flag_off", "0x6022403900010035", -4, 0, no_cond, debug_flag_off_patch, debug_flag_off_applied, false, FW_VER_ANY },
 };
 
 constinit Patterns es_patterns[] = {
@@ -313,6 +339,10 @@ constinit Patterns ssl_patterns[] = {
     { "disablecaverification3", "0x88160012", 4, 0, str_cond, ssl2_patch, ssl2_applied, false, FW_VER_ANY },
 };
 
+constinit Patterns erpt_patterns[] = {
+	{ "no_erpt", "0xFD7B02A9FD830091F76305A9", -4, 0, no_cond, erpt_patch, erpt_applied, false, FW_VER_ANY },
+};
+
 // NOTE: add system titles that you want to be patched to this table.
 // a list of system titles can be found here https://switchbrew.org/wiki/Title_list
 constinit PatchEntry patches[] = {
@@ -324,6 +354,7 @@ constinit PatchEntry patches[] = {
     { "nifm", 0x010000000000000F, nifm_patterns },
     { "nim", 0x0100000000000025, nim_patterns },
     { "ssl", 0x0100000000000024, ssl_patterns },
+    { "erpt", 0x010000000000002b, erpt_patterns, MAKEHOSVERSION(10,0,0) },
 };
 
 struct EmummcPaths {
