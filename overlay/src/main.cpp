@@ -8,6 +8,72 @@ namespace {
 
 constexpr auto CONFIG_PATH = "/config/sys-patch/config.ini";
 constexpr auto LOG_PATH = "/config/sys-patch/log.ini";
+constexpr auto extra_patches_path = "/config/sys-patch/extra_patches.txt";
+
+/*
+#include <stdarg.h>
+
+void debug_log_start() {
+	fsdevMountSdmc();
+	remove("sdmc:/config/sys-patch/debug.log");
+	FILE *debug_log_file;
+	debug_log_file = fopen("sdmc:/config/sys-patch/debug.log", "w");
+	fclose(debug_log_file);
+    fsdevUnmountAll();
+}
+
+void debug_log_write(const char *text, ...) {
+	fsdevMountSdmc();
+	FILE *debug_log_file;
+	debug_log_file = fopen("sdmc:/config/sys-patch/debug.log", "a");
+	va_list v;
+	va_start(v, text);
+	vfprintf(debug_log_file, text, v);
+	va_end(v);
+	fclose(debug_log_file);
+    fsdevUnmountAll();
+}
+*/
+
+char* strdup(const char* str) {
+    size_t len = strlen(str) + 1;
+    char* copy = (char*)malloc(len);
+    if (copy != NULL) {
+// strncpy(copy, str, len);
+        memcpy(copy, str, len);
+    }
+    return copy;
+}
+
+void trim(char* str) {
+	if (str == NULL)
+		return;
+
+	char* start = str;
+	while (*start && isspace((unsigned char)*start))
+		++start;
+
+	size_t len = strlen(start);
+	char* end = start + len - 1;
+	while (end > start && isspace((unsigned char)*end))
+		--end;
+
+	*(end + 1) = '\0';
+
+	if (start != str)
+		memmove(str, start, len - (start - str) + 1);
+}
+
+char *trim2(char *str) {
+    char *end;
+    while (isspace((unsigned char)*str)) str++;
+    if (*str == 0)  // Chaîne vide
+        return str;
+    end = str + strlen(str) - 1;
+    while (end > str && isspace((unsigned char)*end)) end--;
+    *(end + 1) = '\0';
+    return str;
+}
 
 auto does_file_exist(const char* path) -> bool {
     Result rc{};
@@ -43,26 +109,26 @@ auto create_dir(const char* path) -> bool {
 }
 
 struct ConfigEntry {
-    ConfigEntry(const char* _section, const char* _key, bool default_value) :
+    ConfigEntry(std::string _section, std::string _key, bool default_value) :
         section{_section}, key{_key}, value{default_value} {
             this->load_value_from_ini();
         }
 
     void load_value_from_ini() {
-        this->value = ini_getbool(this->section, this->key, this->value, CONFIG_PATH);
+        this->value = ini_getbool(this->section.c_str(), this->key.c_str(), this->value, CONFIG_PATH);
     }
 
     auto create_list_item(const char* text) {
         auto item = new tsl::elm::ToggleListItem(text, value);
         item->setStateChangedListener([this](bool new_value){
             this->value = new_value;
-            ini_putl(this->section, this->key, this->value, CONFIG_PATH);
+            ini_putl(this->section.c_str(), this->key.c_str(), this->value, CONFIG_PATH);
         });
         return item;
     }
 
-    const char* const section;
-    const char* const key;
+    std::string const section;
+    std::string const key;
     bool value;
 };
 
@@ -80,7 +146,7 @@ public:
         list->addItem(config_logging.create_list_item("Logging"));
         list->addItem(config_version_skip.create_list_item("Version skip"));
         list->addItem(config_clean_config.create_list_item("Clean config file"));
-
+        list->addItem(config_load_extra_patches.create_list_item("Load extra patches file"));
         frame->setContent(list);
         return frame;
     }
@@ -90,70 +156,256 @@ public:
     ConfigEntry config_logging{"options", "enable_logging", true};
     ConfigEntry config_version_skip{"options", "version_skip", true};
     ConfigEntry config_clean_config{"options", "clean_config", true};
+    ConfigEntry config_load_extra_patches{"options", "load_extra_patches", true};
 };
 
 class GuiToggle final : public tsl::Gui {
 public:
-    GuiToggle() { }
+GuiToggle() { }
+/*
+    GuiToggle() {
+        // Initialisation des configurations organisées par catégories
+        configEntries = {
+            {["fs", "0100000000000000"], {
+                {"fs", "noacidsigchk_1", true},
+                {"fs", "noacidsigchk_2", true},
+                {"fs", "noncasigchk_1", true},
+                {"fs", "noncasigchk_2", true},
+                {"fs", "noncasigchk_3", true},
+                {"fs", "nocntchk_1", true},
+                {"fs", "nocntchk_2", true},
+            }},
+            {["ldr", "0100000000000001"], {
+                {"ldr", "noacidsigchk", true},
+                {"ldr", "debug_flag", false},
+                {"ldr", "debug_flag_off", false},
+            }},
+            {["es", "0100000000000033"], {
+                {"es", "es_1", true},
+                {"es", "es_2", true},
+                {"es", "es_3", true},
+            }},
+            {["nifm", "010000000000000F"], {
+                {"nifm", "ctest", true},
+            }},
+            {["nim", "0100000000000025"], {
+                {"nim", "fix_prodinfo_blank_error", true},
+            }},
+            {["ssl", "0100000000000024"], {
+                {"ssl", "disablecaverification_1", false},
+                {"ssl", "disablecaverification_2", false},
+                {"ssl", "disablecaverification_3", false},
+            }},
+            {["erpt", "010000000000002b"], {
+                {"erpt", "no_erpt", false},
+            }},
+        };
+    }
+*/
 
     tsl::elm::Element* createUI() override {
         auto frame = new tsl::elm::OverlayFrame("sys-patch", VERSION_WITH_HASH);
         auto list = new tsl::elm::List();
 
-        list->addItem(new tsl::elm::CategoryHeader("FS - 0100000000000000"));
-        list->addItem(config_noacidsigchk1.create_list_item("noacidsigchk1"));
-        list->addItem(config_noacidsigchk2.create_list_item("noacidsigchk2"));
-        list->addItem(config_noncasigchk_old.create_list_item("noncasigchk_old"));
-        list->addItem(config_noncasigchk_new.create_list_item("noncasigchk_new"));
-        list->addItem(config_nocntchk.create_list_item("nocntchk"));
-        list->addItem(config_nocntchk2.create_list_item("nocntchk2"));
+        if (config_load_extra_patches.value == true) {
+            load_extra_patches_configs(extra_patches_path);
+        }
 
-        list->addItem(new tsl::elm::CategoryHeader("LDR - 0100000000000001"));
-        list->addItem(config_noacidsigchk.create_list_item("noacidsigchk"));
-        list->addItem(config_debug_flag_on.create_list_item("debug_flag_on"));
-        list->addItem(config_debug_flag_off.create_list_item("debug_flag_off"));
-
-        list->addItem(new tsl::elm::CategoryHeader("ES - 0100000000000033"));
-        list->addItem(config_es1.create_list_item("es1"));
-        list->addItem(config_es2.create_list_item("es2"));
-        list->addItem(config_es3.create_list_item("es3"));
-
-        list->addItem(new tsl::elm::CategoryHeader("NIFM - 010000000000000F"));
-        list->addItem(config_ctest.create_list_item("ctest"));
-
-        list->addItem(new tsl::elm::CategoryHeader("NIM - 0100000000000025"));
-        list->addItem(config_nim.create_list_item("nim"));
-
-        list->addItem(new tsl::elm::CategoryHeader("Disable CA Verification - apply all"));
-        list->addItem(config_ssl1.create_list_item("disablecaverification1"));
-        list->addItem(config_ssl2.create_list_item("disablecaverification2"));
-        list->addItem(config_ssl3.create_list_item("disablecaverification3"));
-
-        list->addItem(new tsl::elm::CategoryHeader("ERPT - 010000000000002b"));
-        list->addItem(config_no_erpt.create_list_item("no_erpt"));
+        if (configEntries.empty()) {
+            list->addItem(new tsl::elm::ListItem("No patches found!"));
+        } else {
+            for (const auto& [categoryKey, entries] : configEntries) {
+                addCategoryToList(list, categoryKey[1], categoryKey[0]);
+            }
+        }
 
         frame->setContent(list);
         return frame;
     }
 
-    ConfigEntry config_noacidsigchk1{"fs", "noacidsigchk1", true};
-    ConfigEntry config_noacidsigchk2{"fs", "noacidsigchk2", true};
-    ConfigEntry config_noncasigchk_old{"fs", "noncasigchk_old", true};
-    ConfigEntry config_noncasigchk_new{"fs", "noncasigchk_new", true};
-    ConfigEntry config_nocntchk{"fs", "nocntchk", true};
-    ConfigEntry config_nocntchk2{"fs", "nocntchk2", true};
-    ConfigEntry config_noacidsigchk{"ldr", "noacidsigchk", true};
-    ConfigEntry config_es1{"es", "es1", true};
-    ConfigEntry config_es2{"es", "es2", true};
-    ConfigEntry config_es3{"es", "es3", true};
-    ConfigEntry config_ctest{"nifm", "ctest", true};
-    ConfigEntry config_nim{"nim", "nim", true};
-    ConfigEntry config_ssl1{"ssl", "disablecaverification1", false};
-    ConfigEntry config_ssl2{"ssl", "disablecaverification2", false};
-    ConfigEntry config_ssl3{"ssl", "disablecaverification3", false};
-    ConfigEntry config_no_erpt{"erpt", "no_erpt", false};
-    ConfigEntry config_debug_flag_on{"ldr", "debug_flag_on", false};
-    ConfigEntry config_debug_flag_off{"ldr", "debug_flag_off", false};
+    ConfigEntry config_load_extra_patches{"options", "load_extra_patches", true};
+
+    void addCategory(const std::string& categoryName, const std::string& description) {
+        const auto it = std::find_if(configEntries.begin(), configEntries.end(), [&categoryName](const auto& pair) { return pair.first[0] == categoryName; });
+        if (it != configEntries.end()) {
+            return;
+        }
+    configEntries.push_back({{categoryName, description}, {}});
+    }
+
+    bool addConfigEntry(const std::string categoryName, const ConfigEntry newEntry) {
+        auto it = std::find_if(configEntries.begin(), configEntries.end(), [&categoryName](const auto& pair) { return pair.first[0] == categoryName; });
+        if (it == configEntries.end()) {
+            return false;
+        }
+
+        for (const auto& entry : it->second) {
+            if (entry.key == newEntry.key) {
+                return false;
+            }
+        }
+
+        it->second.push_back(newEntry);
+        return true;
+    }
+
+private:
+    std::list<std::pair<std::array<std::string, 2>, std::list<ConfigEntry>>> configEntries;
+
+    void addCategoryToList(tsl::elm::List* list, const std::string& categoryHeader, const std::string& categoryName) {
+        auto it = std::find_if(configEntries.begin(), configEntries.end(), [&categoryName](const auto& pair) { return pair.first[0] == categoryName; });
+        if (it == configEntries.end() || it->second.empty()) {
+            return;
+        }
+        list->addItem(new tsl::elm::CategoryHeader(categoryHeader.c_str()));
+        for (auto& entry : it->second) {
+            list->addItem(entry.create_list_item(entry.key.c_str()));
+        }
+    }
+
+    bool load_extra_patches_configs(const char* filename) {
+        NxFile file;
+        bool rc=ini_openread(filename, &file);
+        if (!rc) {
+            return false;
+        }
+
+        char line[256];
+        char *actual_section = {};
+        char *trimmed_line = {};
+        size_t buffer_length=sizeof(line);
+        size_t line_trim_alloc = buffer_length + 1;
+        bool first_line_init = false;
+        int count_buff_line_passed = 0;
+    int z = 0;
+        while (ini_read2(line, buffer_length, &file)) {
+            if (!first_line_init) {
+                trimmed_line = (char*) calloc(1, line_trim_alloc);
+                first_line_init = true;
+            }
+            strcat(trimmed_line, line);
+            if ((trimmed_line[strlen(trimmed_line) - 1] != '\r' && trimmed_line[strlen(trimmed_line) - 1] != '\n') && strlen(trimmed_line) > 0) {
+                z++;
+                if (z > count_buff_line_passed) {
+                    line_trim_alloc += buffer_length;
+                    trimmed_line = (char*) realloc(trimmed_line, line_trim_alloc);
+                    count_buff_line_passed++;
+                }
+                continue;
+            }
+            z = 0;
+            trim(trimmed_line);
+            if (trimmed_line[0] == '\0' || trimmed_line[0] == ';' || trimmed_line[0] == '\r' || trimmed_line[0] == '\n') {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+
+            if (trimmed_line[0] == '[' && trimmed_line[strlen(trimmed_line) - 1] == ']') {
+                trimmed_line[strlen(trimmed_line) - 1] = '\0';
+                if (actual_section) {
+                    free(actual_section);
+                }
+                actual_section = strdup(trimmed_line + 1);
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+
+            if (!actual_section) {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+
+            char patch_name[50];
+            char* token;
+
+            if (strcmp(actual_section, "patches_entries") == 0) {
+char titleid[17];
+                token = strtok(trimmed_line, ",");
+                if (token != nullptr) {
+                    strncpy(patch_name, trim2(token), sizeof(patch_name) - 1);
+                } else {
+                    memset(trimmed_line, '\0', line_trim_alloc);
+                    continue;
+                }
+                token = strtok(nullptr, ",");
+                if (token != nullptr) {
+                    strncpy(titleid, trim2(token), sizeof(titleid) - 1);
+                } else {
+                    memset(trimmed_line, '\0', line_trim_alloc);
+                    continue;
+                }
+                std::string category_desc = (std::string) patch_name + " - " + (std::string) titleid;
+                addCategory((std::string) patch_name, category_desc);
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+
+            int enabled = 0;
+
+            token = strtok(trimmed_line, ",");
+            if (token != nullptr) {
+                strncpy(patch_name, trim2(token), sizeof(patch_name) - 1);
+            } else {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+            token = strtok(nullptr, ",");
+            if (token == nullptr) {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+            token = strtok(nullptr, ",");
+            if (token == nullptr) {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+            token = strtok(nullptr, ",");
+            if (token == nullptr) {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+            token = strtok(nullptr, ",");
+            if (token == nullptr) {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+            token = strtok(nullptr, ",");
+            if (token == nullptr) {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+            token = strtok(nullptr, ",");
+            if (token == nullptr) {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+            token = strtok(nullptr, ",");
+            if (token != nullptr) {
+                enabled = atoi(trim2(token));
+            } else {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+
+            ConfigEntry new_config = ConfigEntry(
+                (std::string) actual_section,
+                (std::string) patch_name,
+                (bool)enabled
+            );
+
+            addConfigEntry((std::string) actual_section, new_config);
+            memset(trimmed_line, '\0', line_trim_alloc);
+        }
+
+        ini_close(&file);
+        if (trimmed_line) {
+            free(trimmed_line);
+        }
+        if (actual_section) {
+            free(actual_section);
+        }
+        return true;
+    }
 
 };
 

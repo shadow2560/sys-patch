@@ -1,6 +1,6 @@
 # sys-patch
 
-A script-like system module that patches **fs**, **es**, **ldr**, **nifm**, **nim** and **erpt** on boot.
+A script-like system module that patches **fs**, **es**, **ldr**, **nifm** and **nim** on boot.
 
 ---
 
@@ -16,13 +16,70 @@ patch_sysmmc=1   ; 1=(default) patch sysmmc, 0=don't patch sysmmc
 patch_emummc=1   ; 1=(default) patch emummc, 0=don't patch emummc
 enable_logging=1 ; 1=(default) output /config/sys-patch/log.ini 0=no log
 version_skip=1   ; 1=(default) skips out of date patterns, 0=search all patterns
-clean_config=1 ; 1=(default) clean the config file 0=don't clean the config file
+clean_config=1 ; 1=(default) clean the config file (if load_extra_patches is set to 0 (disabled in the overlay) it will clean the extra_patches configs also), 0=don't clean the config file
+load_extra_patches=1   ; 1=(default) load extra patches and extra patches entries in "/config/sys-patch/extra_patches.txt", 0=don't load extra patches
 ```
 
-Note:
-* Please don't use default disabled patches except if you know what you're doing.
-* The patches debug_flag_on and debug_flag_off can be used to launch old forwarders (debug_flag_on) but it can cause some problem so disable it when you don't need it or enable debug_flag_off and disable debug_flag_on and launch the module Sys-patch via a tool like Sys-modules overlay then disable debug_flag_off patch to be sure it will not be unusfuly used when launching Sys-patch next time.
-* The patch no_erpt can be used to disable erpt service but use it only if you know what you're doing.
+The file "extra_patches.txt" is build like that:
+```
+; General rules:
+; Keep a blank line at the end of the file
+; Don't use special chars, use only "A-Z", "a-z", "0-9", "_", "-", "." and " "
+; Use the "," char only to separate fields
+; Prefer to set every fields, even if firmware versions or Atmosphere version is not always required because set to "FW_VER_ANY" by default it's preferable to set them
+; Fields are always trimmed
+
+; Patches entries rules:
+; section "patches_entries" is reserved to declare only patches entries and must be the first section of the file
+; ; One line by patches_entry
+; Name of the patch entry can't be more than 49 chars and must match an other section of this file or a category used in source code
+; Firmware version needs to be declared like that: 2.0.0 or 19.0.1 or FW_VER_ANY (this one is to tell that no firmware version is limited for that value of the patch entry)
+; Other rules are the same as original sys-patch patches entries declaration
+
+; Patterns rules:
+; One line by pattern
+; Name of the pattern can't be more than 49 chars
+; Hex pattern can't be more than 127 chars (the "0x" witch could start the value are counted in them)
+; Firmware version or Atmosphere version need to be declared like that: 1.8.0 or 19.0.1 or FW_VER_ANY (this one is to tell that no firmware version is limited for that value of the pattern)
+; To enable pattern replace "true" by "1" and "false" by "0"
+; sections name for a patterns list must refer to a category, in the source code or in the "extra_patches_entries" section
+; Other rules are the same as original sys-patch patterns declaration and list of functions witch can be used are in the source code
+
+[patches_entries]
+fs, 0x0100000000000000, FW_VER_ANY, FW_VER_ANY
+ldr, 0x0100000000000001, 10.0.0, FW_VER_ANY
+es, 0x0100000000000033, 2.0.0, FW_VER_ANY
+nifm, 0x010000000000000F, FW_VER_ANY, FW_VER_ANY
+nim, 0x0100000000000025, FW_VER_ANY, FW_VER_ANY
+ssl, 0x0100000000000024, FW_VER_ANY, FW_VER_ANY
+erpt, 0x010000000000002b, 10.0.0, FW_VER_ANY
+[fs]
+noacidsigchk_1, 0xC8FE4739, -24, 0, bl_cond, ret0_patch, ret0_applied, 1, FW_VER_ANY, 9.2.0, FW_VER_ANY, FW_VER_ANY
+noacidsigchk_2, 0x0210911F000072, -5, 0, bl_cond, ret0_patch, ret0_applied, 1, FW_VER_ANY, 9.2.0, FW_VER_ANY, FW_VER_ANY
+noncasigchk_1, 0x0036.......71..0054..4839, -2, 0, tbz_cond, nop_patch, nop_applied, 1, 10.0.0, 16.1.0, FW_VER_ANY, FW_VER_ANY
+noncasigchk_2, 0x.94..0036.258052, 2, 0, tbz_cond, nop_patch, nop_applied, 1, 17.0.0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+nocntchk_1, 0x40f9...9408.0012.050071, 2, 0, bl_cond, ret0_patch, ret0_applied, 1, 10.0.0, 18.1.0, FW_VER_ANY, FW_VER_ANY
+nocntchk_2, 0x40f9...94..40b9..0012, 2, 0, bl_cond, ret0_patch, ret0_applied, 1, 19.0.0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+[ldr]
+noacidsigchk, 0xFD7B.A8C0035FD6, 16, 2, subs_cond, subs_patch, subs_applied, 1, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+debug_flag_on, 0x6022403900010035, -4, 0, no_cond, debug_flag_patch, debug_flag_applied, 0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+debug_flag_off, 0x6022403900010035, -4, 0, no_cond, debug_flag_off_patch, debug_flag_off_applied, 0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+[es]
+es_1, 0x..00.....e0.0091..0094..4092...d1, 16, 0, and_cond, mov0_patch, mov0_applied, 1, FW_VER_ANY, 1.0.0, FW_VER_ANY, FW_VER_ANY
+es_2, 0x..00.....e0.0091..0094..4092...a9, 16, 0, and_cond, mov0_patch, mov0_applied, 1, 2.0.0, 8.1.1, FW_VER_ANY, FW_VER_ANY
+es_3, 0x..00...0094a0..d1..ff97.......a9, 16, 0, mov2_cond, mov0_patch, mov0_applied, 1, 9.0.0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+[nifm]
+ctest, 0x....................F40300AA....F30314AAE00314AA9F0201397F8E04F8, 16, -16, ctest_cond, ctest_patch, ctest_applied, 1, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+[nim]
+fix_prodinfo_blank_error, 0x.0F00351F2003D5, 8, 0, adr_cond, mov2_patch, mov2_applied, 1, 17.0.0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+[ssl]
+disablecaverification_1, 0x6A0080D2, 0, 0, mov3_cond, ssl1_patch, ssl1_applied, 0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+disablecaverification_2, 0x2409437AA0000054, 4, 0, beq_cond, ret1_patch, ret1_applied, 0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+disablecaverification_3, 0x88160012, 4, 0, str_cond, ssl2_patch, ssl2_applied, 0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+[erpt]
+no_erpt, 0xFD7B02A9FD830091F76305A9, -4, 0, no_cond, erpt_patch, erpt_applied, 0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+
+```
 
 ---
 
@@ -64,12 +121,14 @@ To activate the sys-module, reboot your switch, or, use [sysmodules overlay](htt
 Here's a quick run down of what's being patched:
 
 - **fs** and **es** need new patches after every new firmware version.
-- **ldr** needs new patches after every new [Atmosphere](https://github.com/Atmosphere-NX/Atmosphere/) release.
+- **ldr** needs new patches after every new [Atmosphere](https://github.com/Atmosphere-NX/Atmosphere/) release. For "debug_flag_on" and "debug_flag_off" patches prefer to rebuild your forwarders than using these patches.
 - **nifm** ctest patch allows the device to connect to a network without needing to make a connection to a server
 - **nim** patches to the ssl function call within nim that queries "https://api.hac.%.ctest.srv.nintendo.net/v1/time", and crashes the console if console ssl certificate is not intact. This patch instead makes the console not crash.
+- **ssl** patches to disable the SSL verification in browser, enable it if you realy need it.
+- **erpt** patches to disable ERPT writes from Atmosphere, enable it if you realy need it.
 
 The patches are applied on boot. Once done, the sys-module stops running.
-The memory footprint *(16kib)* and the binary size *(~50kib)* are both very small.
+The memory footprint *(13kib)* and the binary size *(~60kib)* are both very small.
 
 ---
 
