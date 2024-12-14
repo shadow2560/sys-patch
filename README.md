@@ -129,7 +129,7 @@ Here's a quick run down of what's being patched:
 - **erpt** patches to disable ERPT writes from Atmosphere, enable it if you realy need it.
 
 The patches are applied on boot. Once done, the sys-module stops running.
-The memory footprint *(13kib)* and the binary size *(~60kib)* are both very small.
+The memory footprint *(30-40kib)* and the binary size *(~60kib)* are both very small.
 
 ---
 
