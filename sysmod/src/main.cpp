@@ -1300,6 +1300,11 @@ int z = 0;
                 continue;
             }
             token = strtok(nullptr, ",");
+            if (token == nullptr) {
+                memset(trimmed_line, '\0', line_trim_alloc);
+                continue;
+            }
+            token = strtok(nullptr, ",");
             if (token != nullptr) {
                 strncpy(min_fw_ver_str, trim2(token), sizeof(min_fw_ver_str) - 1);
             } else {

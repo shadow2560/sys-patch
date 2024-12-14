@@ -166,7 +166,7 @@ GuiToggle() { }
     GuiToggle() {
         // Initialisation des configurations organisées par catégories
         configEntries = {
-            {["fs", "0100000000000000"], {
+            {["fs", "fs - 0100000000000000"], {
                 {"fs", "noacidsigchk_1", true},
                 {"fs", "noacidsigchk_2", true},
                 {"fs", "noncasigchk_1", true},
@@ -175,28 +175,28 @@ GuiToggle() { }
                 {"fs", "nocntchk_1", true},
                 {"fs", "nocntchk_2", true},
             }},
-            {["ldr", "0100000000000001"], {
+            {["ldr", "ldr - 0100000000000001"], {
                 {"ldr", "noacidsigchk", true},
                 {"ldr", "debug_flag", false},
                 {"ldr", "debug_flag_off", false},
             }},
-            {["es", "0100000000000033"], {
+            {["es", "es - 0100000000000033"], {
                 {"es", "es_1", true},
                 {"es", "es_2", true},
                 {"es", "es_3", true},
             }},
-            {["nifm", "010000000000000F"], {
+            {["nifm", "nifm - 010000000000000F"], {
                 {"nifm", "ctest", true},
             }},
-            {["nim", "0100000000000025"], {
+            {["nim", "nim - 0100000000000025"], {
                 {"nim", "fix_prodinfo_blank_error", true},
             }},
-            {["ssl", "0100000000000024"], {
+            {["ssl", "Disable CA Verification - apply all"], {
                 {"ssl", "disablecaverification_1", false},
                 {"ssl", "disablecaverification_2", false},
                 {"ssl", "disablecaverification_3", false},
             }},
-            {["erpt", "010000000000002b"], {
+            {["erpt", "erpt - 010000000000002b"], {
                 {"erpt", "no_erpt", false},
             }},
         };
@@ -319,7 +319,7 @@ private:
             char* token;
 
             if (strcmp(actual_section, "patches_entries") == 0) {
-char titleid[17];
+char titleid[19], category_desc[70];
                 token = strtok(trimmed_line, ",");
                 if (token != nullptr) {
                     strncpy(patch_name, trim2(token), sizeof(patch_name) - 1);
@@ -334,8 +334,17 @@ char titleid[17];
                     memset(trimmed_line, '\0', line_trim_alloc);
                     continue;
                 }
-                std::string category_desc = (std::string) patch_name + " - " + (std::string) titleid;
-                addCategory((std::string) patch_name, category_desc);
+                token = strtok(nullptr, ",");
+                if (token != nullptr) {
+                    strncpy(category_desc, trim2(token), sizeof(category_desc) - 1);
+                } else {
+                    memset(trimmed_line, '\0', line_trim_alloc);
+                    continue;
+                }
+                if (strcmp(category_desc, "") == 0) {
+                    (std::string) category_desc = (std::string) patch_name + " - " + (std::string) titleid;
+                }
+                addCategory((std::string) patch_name, (std::string) category_desc);
                 memset(trimmed_line, '\0', line_trim_alloc);
                 continue;
             }

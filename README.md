@@ -33,6 +33,7 @@ The file "extra_patches.txt" is build like that:
 ; section "patches_entries" is reserved to declare only patches entries and must be the first section of the file
 ; ; One line by patches_entry
 ; Name of the patch entry can't be more than 49 chars and must match an other section of this file or a category used in source code
+; The third field is used to describe the patches entry in the overlay (69 chars max), if not present the patches entry will be concidered invalid and if empty the description will be "patches_entry_name - patches_entry_titleid"
 ; Firmware version needs to be declared like that: 2.0.0 or 19.0.1 or FW_VER_ANY (this one is to tell that no firmware version is limited for that value of the patch entry)
 ; Other rules are the same as original sys-patch patches entries declaration
 
@@ -46,13 +47,13 @@ The file "extra_patches.txt" is build like that:
 ; Other rules are the same as original sys-patch patterns declaration and list of functions witch can be used are in the source code
 
 [patches_entries]
-fs, 0x0100000000000000, FW_VER_ANY, FW_VER_ANY
-ldr, 0x0100000000000001, 10.0.0, FW_VER_ANY
-es, 0x0100000000000033, 2.0.0, FW_VER_ANY
-nifm, 0x010000000000000F, FW_VER_ANY, FW_VER_ANY
-nim, 0x0100000000000025, FW_VER_ANY, FW_VER_ANY
-ssl, 0x0100000000000024, FW_VER_ANY, FW_VER_ANY
-erpt, 0x010000000000002b, 10.0.0, FW_VER_ANY
+fs, 0x0100000000000000, fs - 0100000000000000, FW_VER_ANY, FW_VER_ANY
+ldr, 0x0100000000000001, ldr - 0100000000000001, 10.0.0, FW_VER_ANY
+es, 0x0100000000000033, es - 0100000000000033,, 2.0.0, FW_VER_ANY
+nifm, 0x010000000000000F, nifm - 010000000000000F, FW_VER_ANY, FW_VER_ANY
+nim, 0x0100000000000025, nim - 0100000000000025, FW_VER_ANY, FW_VER_ANY
+ssl, 0x0100000000000024, Disable CA Verification - apply all, FW_VER_ANY, FW_VER_ANY
+erpt, 0x010000000000002b, erpt - 010000000000002b, 10.0.0, FW_VER_ANY
 [fs]
 noacidsigchk_1, 0xC8FE4739, -24, 0, bl_cond, ret0_patch, ret0_applied, 1, FW_VER_ANY, 9.2.0, FW_VER_ANY, FW_VER_ANY
 noacidsigchk_2, 0x0210911F000072, -5, 0, bl_cond, ret0_patch, ret0_applied, 1, FW_VER_ANY, 9.2.0, FW_VER_ANY, FW_VER_ANY
@@ -121,7 +122,7 @@ To activate the sys-module, reboot your switch, or, use [sysmodules overlay](htt
 Here's a quick run down of what's being patched:
 
 - **fs** and **es** need new patches after every new firmware version.
-- **ldr** needs new patches after every new [Atmosphere](https://github.com/Atmosphere-NX/Atmosphere/) release. For "debug_flag_on" and "debug_flag_off" patches prefer to rebuild your forwarders than using these patches.
+- **ldr** needs new patches after every new [Atmosphere](https://github.com/Atmosphere-NX/Atmosphere/) release. For "debug_flag_on" and "debug_flag_off" patches prefer to rebuild your forwarders than using these patches witch can cause some problems.
 - **nifm** ctest patch allows the device to connect to a network without needing to make a connection to a server
 - **nim** patches to the ssl function call within nim that queries "https://api.hac.%.ctest.srv.nintendo.net/v1/time", and crashes the console if console ssl certificate is not intact. This patch instead makes the console not crash.
 - **ssl** patches to disable the SSL verification in browser, enable it if you realy need it.
