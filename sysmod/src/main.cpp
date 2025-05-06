@@ -212,7 +212,10 @@ constexpr auto ctest_cond(u32 inst) -> bool {
     return std::byteswap(0xF50301AA) == inst; // mov x21, x1
 }
 
-
+constexpr auto b_cond(u32 inst) -> bool {
+    const auto type = inst >> 24;
+    return type == 0x14 || type == 0x17;
+}
 
 // to view patches, use https://armconverter.com/?lock=arm64
 constexpr PatchData ret0_patch_data{ "0xE0031F2A" };
@@ -326,7 +329,8 @@ constinit Patterns es_patterns[] = {
 };
 
 constinit Patterns nifm_patterns[] = {
-    { "ctest", "....................F40300AA....F30314AAE00314AA9F0201397F8E04F8", 16, -16, ctest_cond, ctest_patch, ctest_applied, true, FW_VER_ANY },
+    { "ctest", "....................F40300AA....F30314AAE00314AA9F0201397F8E04F8", 16, -16, ctest_cond, ctest_patch, ctest_applied, true, FW_VER_ANY, MAKEHOSVERSION(18,1,0) }, // 1.0.0 - 18.1.0
+    { "ctest2", "14...........91...........97...............14", 37, 4, b_cond, ctest_patch, ctest_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY }, //19.0.0 - 20.0.1+
 };
 
 constinit Patterns nim_patterns[] = {
