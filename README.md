@@ -70,7 +70,8 @@ es_1, 0x..00.....e0.0091..0094..4092...d1, 16, 0, and_cond, mov0_patch, mov0_app
 es_2, 0x..00.....e0.0091..0094..4092...a9, 16, 0, and_cond, mov0_patch, mov0_applied, 1, 2.0.0, 8.1.1, FW_VER_ANY, FW_VER_ANY
 es_3, 0x..00...0094a0..d1..ff97.......a9, 16, 0, mov2_cond, mov0_patch, mov0_applied, 1, 9.0.0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
 [nifm]
-ctest, 0x....................F40300AA....F30314AAE00314AA9F0201397F8E04F8, 16, -16, ctest_cond, ctest_patch, ctest_applied, 1, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
+ctest, 0x....................F40300AA....F30314AAE00314AA9F0201397F8E04F8, 16, -16, ctest_cond, ctest_patch, ctest_applied, 1, FW_VER_ANY, 18.1.0, FW_VER_ANY, FW_VER_ANY
+ctest_2, 0x14...........91...........97...............14, 37, 4, b_cond, ctest_patch, ctest_applied, 1, 19.0.0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
 [nim]
 fix_prodinfo_blank_error, 0x.0F00351F2003D5, 8, 0, adr_cond, mov2_patch, mov2_applied, 1, 17.0.0, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY
 [ssl]
