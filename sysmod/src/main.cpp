@@ -297,6 +297,11 @@ constexpr auto ctest_cond(u32 inst) -> bool {
     return std::byteswap(0xF50301AA) == inst; // mov x21, x1
 }
 
+constexpr auto b_cond(u32 inst) -> bool {
+    const auto type = inst >> 24;
+    return type == 0x14 || type == 0x17;
+}
+
 // to view patches, use https://armconverter.com/?lock=arm64
 constexpr PatchData ret0_patch_data{ "0xE0031F2A" };
 constexpr PatchData ret1_patch_data{ "0x10000014" };
@@ -421,7 +426,8 @@ return true;
     full_add_or_replace_pattern("es", Patterns("es_2", "0x..00.....e0.0091..0094..4092...a9", 16, 0, and_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(2,0,0), MAKEHOSVERSION(8,1,1), FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("es", Patterns("es_3", "0x..00...0094a0..d1..ff97.......a9", 16, 0, mov2_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(9,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
-    full_add_or_replace_pattern("nifm", Patterns("ctest", "....................F40300AA....F30314AAE00314AA9F0201397F8E04F8", 16, -16, ctest_cond, ctest_patch, ctest_applied, true, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("nifm", Patterns("ctest", "....................F40300AA....F30314AAE00314AA9F0201397F8E04F8", 16, -16, ctest_cond, ctest_patch, ctest_applied, true, FW_VER_ANY, MAKEHOSVERSION(18,1,0), FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("nifm", Patterns("ctest_2", "14...........91...........97...............14", 37, 4, b_cond, ctest_patch, ctest_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
     full_add_or_replace_pattern("nim", Patterns("fix_prodinfo_blank_error", "0x.0F00351F2003D5", 8, 0, adr_cond, mov2_patch, mov2_applied, true, MAKEHOSVERSION(17,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
@@ -1154,6 +1160,7 @@ bool (*get_condition_function(const char* name))(u32) {
     if (strcmp(name, "beq_cond") == 0) return beq_cond;
     if (strcmp(name, "str_cond") == 0) return str_cond;
     if (strcmp(name, "ctest_cond") == 0) return ctest_cond;
+    if (strcmp(name, "b_cond") == 0) return b_cond;
     // Add others conditions functions here...
     return nullptr; // Valeur par défaut si aucune fonction ne correspond
 }

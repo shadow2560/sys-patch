@@ -187,6 +187,7 @@ GuiToggle() { }
             }},
             {["nifm", "nifm - 010000000000000F"], {
                 {"nifm", "ctest", true},
+                {"nifm", "ctest_2", true},
             }},
             {["nim", "nim - 0100000000000025"], {
                 {"nim", "fix_prodinfo_blank_error", true},
