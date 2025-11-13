@@ -103,8 +103,9 @@ public:
         list->addItem(new tsl::elm::CategoryHeader("FS - 0100000000000000"));
         list->addItem(config_noacidsigchk1.create_list_item("noacidsigchk1"));
         list->addItem(config_noacidsigchk2.create_list_item("noacidsigchk2"));
-        list->addItem(config_noncasigchk_old.create_list_item("noncasigchk_old"));
-        list->addItem(config_noncasigchk_new.create_list_item("noncasigchk_new"));
+        list->addItem(config_noncasigchk.create_list_item("noncasigchk"));
+        list->addItem(config_noncasigchk2.create_list_item("noncasigchk2"));
+        list->addItem(config_noncasigchk3.create_list_item("noncasigchk3"));
         list->addItem(config_nocntchk.create_list_item("nocntchk"));
         list->addItem(config_nocntchk2.create_list_item("nocntchk2"));
 
@@ -124,6 +125,7 @@ public:
 
         list->addItem(new tsl::elm::CategoryHeader("NIM - 0100000000000025"));
         list->addItem(config_nim.create_list_item("nim"));
+        list->addItem(config_nim2.create_list_item("nim2"));
 
         list->addItem(new tsl::elm::CategoryHeader("Disable CA Verification - apply all"));
         list->addItem(config_ssl1.create_list_item("disablecaverification1"));
@@ -139,8 +141,9 @@ public:
 
     ConfigEntry config_noacidsigchk1{"fs", "noacidsigchk1", true};
     ConfigEntry config_noacidsigchk2{"fs", "noacidsigchk2", true};
-    ConfigEntry config_noncasigchk_old{"fs", "noncasigchk_old", true};
-    ConfigEntry config_noncasigchk_new{"fs", "noncasigchk_new", true};
+    ConfigEntry config_noncasigchk{"fs", "noncasigchk", true};
+    ConfigEntry config_noncasigchk2{"fs", "noncasigchk2", true};
+    ConfigEntry config_noncasigchk3{"fs", "noncasigchk3", true};
     ConfigEntry config_nocntchk{"fs", "nocntchk", true};
     ConfigEntry config_nocntchk2{"fs", "nocntchk2", true};
     ConfigEntry config_noacidsigchk{"ldr", "noacidsigchk", true};
@@ -150,6 +153,7 @@ public:
     ConfigEntry config_ctest{"nifm", "ctest", true};
     ConfigEntry config_ctest2{"nifm", "ctest2", true};
     ConfigEntry config_nim{"nim", "nim", true};
+    ConfigEntry config_nim2{"nim", "nim2", true};
     ConfigEntry config_ssl1{"ssl", "disablecaverification1", false};
     ConfigEntry config_ssl2{"ssl", "disablecaverification2", false};
     ConfigEntry config_ssl3{"ssl", "disablecaverification3", false};
