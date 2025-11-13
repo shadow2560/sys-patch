@@ -233,6 +233,11 @@ constexpr auto subr_cond(u32 inst) -> bool {
     return (type == 0x358) && (reg == 0x01);
 }
 
+constexpr auto cmp_cond(u32 inst) -> bool {
+    const auto type = inst >> 24;
+    return type == 0x6B; // cmp w0, w1
+}
+
 constexpr auto bl_cond(u32 inst) -> bool {
     const auto type = inst >> 24;
     return type == 0x25 || type == 0x94;
@@ -310,6 +315,7 @@ constexpr PatchData nop_patch_data{ "0x1F2003D5" };
 constexpr PatchData mov0_patch_data{ "0xE0031FAA" };
 //mov x2, xzr
 constexpr PatchData mov2_patch_data{ "0xE2031FAA" };
+constexpr PatchData cmp_patch_data{ "0x00" };
 constexpr PatchData ssl1_patch_data{ "0x0A" };
 constexpr PatchData ssl2_patch_data{ "0x08008052" };
 constexpr PatchData ctest_patch_data{ "0x00309AD2001EA1F2610100D4E0031FAAC0035FD6" };
@@ -320,9 +326,10 @@ constexpr PatchData debug_flag_off_patch_data{ "0x29FAFF54" };
 constexpr auto ret0_patch(u32 inst) -> PatchData { return ret0_patch_data; }
 constexpr auto ret1_patch(u32 inst) -> PatchData { return ret1_patch_data; }
 constexpr auto nop_patch(u32 inst) -> PatchData { return nop_patch_data; }
-constexpr auto subs_patch(u32 inst) -> PatchData { return subi_cond(inst) ? (u8)0x1 : (u8)0x0; }
 constexpr auto mov0_patch(u32 inst) -> PatchData { return mov0_patch_data; }
 constexpr auto mov2_patch(u32 inst) -> PatchData { return mov2_patch_data; }
+constexpr auto subs_patch(u32 inst) -> PatchData { return subi_cond(inst) ? (u8)0x1 : (u8)0x0; }
+constexpr auto cmp_patch(u32 inst) -> PatchData { return cmp_patch_data; }
 constexpr auto ssl1_patch(u32 inst) -> PatchData { return ssl1_patch_data; }
 constexpr auto ssl2_patch(u32 inst) -> PatchData { return ssl2_patch_data; }
 constexpr auto ctest_patch(u32 inst) -> PatchData { return ctest_patch_data; }
@@ -354,6 +361,10 @@ constexpr auto subs_applied(const u8* data, u32 inst) -> bool {
     const auto type_r = (inst >> 21) & 0x7F9;
     const auto reg = (inst >> 16) & 0x1F;
     return ((type_i == 0x71) && (imm == 0x1)) || ((type_r == 0x358) && (reg == 0x0));
+}
+
+constexpr auto cmp_applied(const u8* data, u32 inst) -> bool {
+    return cmp_patch(inst).cmp(data);
 }
 
 constexpr auto b_applied(const u8* data, u32 inst) -> bool {
@@ -414,11 +425,13 @@ return true;
     full_add_or_replace_pattern("fs", Patterns("noacidsigchk_1", "0xC8FE4739", -24, 0, bl_cond, ret0_patch, ret0_applied, true, FW_VER_ANY, MAKEHOSVERSION(9,2,0), FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("fs", Patterns("noacidsigchk_2", "0x0210911F000072", -5, 0, bl_cond, ret0_patch, ret0_applied, true, FW_VER_ANY, MAKEHOSVERSION(9,2,0), FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("fs", Patterns("noncasigchk_1", "0x0036.......71..0054..4839", -2, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(10,0,0), MAKEHOSVERSION(16,1,0), FW_VER_ANY, FW_VER_ANY));
-    full_add_or_replace_pattern("fs", Patterns("noncasigchk_2", "0x.94..0036.258052", 2, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(17,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("fs", Patterns("noncasigchk_2", "0x.94..0036.258052", 2, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(17,0,0), MAKEHOSVERSION(20,5,0), FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("fs", Patterns("noncasigchk_3", "0x.94..0036.........258052", 2, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(21,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("fs", Patterns("nocntchk_1", "0x40f9...9408.0012.050071", 2, 0, bl_cond, ret0_patch, ret0_applied, true, MAKEHOSVERSION(10,0,0), MAKEHOSVERSION(18,1,0), FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("fs", Patterns("nocntchk2", "0x40f9...94..40b9..0012", 2, 0, bl_cond, ret0_patch, ret0_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
-    full_add_or_replace_pattern("ldr", Patterns("noacidsigchk", "0xFD7B.A8C0035FD6", 16, 2, subs_cond, subs_patch, subs_applied, true, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
+    // full_add_or_replace_pattern("ldr", Patterns("noacidsigchk", "0xFD7B.A8C0035FD6", 16, 2, subs_cond, subs_patch, subs_applied, true, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("ldr", Patterns("noacidsigchk", "17..009401C0BE121F00", 9, 2, cmp_cond, cmp_patch, cmp_applied, true, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("ldr", Patterns("debug_flag", "0x6022403900010035", -4, 0, no_cond, debug_flag_patch, debug_flag_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("ldr", Patterns("debug_flag_off", "0x6022403900010035", -4, 0, no_cond, debug_flag_off_patch, debug_flag_off_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
@@ -429,7 +442,8 @@ return true;
     full_add_or_replace_pattern("nifm", Patterns("ctest", "....................F40300AA....F30314AAE00314AA9F0201397F8E04F8", 16, -16, ctest_cond, ctest_patch, ctest_applied, true, FW_VER_ANY, MAKEHOSVERSION(18,1,0), FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("nifm", Patterns("ctest_2", "14...........91...........97...............14", 37, 4, b_cond, ctest_patch, ctest_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
-    full_add_or_replace_pattern("nim", Patterns("fix_prodinfo_blank_error", "0x.0F00351F2003D5", 8, 0, adr_cond, mov2_patch, mov2_applied, true, MAKEHOSVERSION(17,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("nim", Patterns("fix_prodinfo_blank_error", "0x.0F00351F2003D5", 8, 0, adr_cond, mov2_patch, mov2_applied, true, MAKEHOSVERSION(17,0,0), MAKEHOSVERSION(20,5,0), FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("nim", Patterns("fix_prodinfo_blank_error_2", "0x.0700351F2003D5", 8, 0, adr_cond, mov2_patch, mov2_applied, true, MAKEHOSVERSION(21,0,0), FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
     full_add_or_replace_pattern("ssl", Patterns("disablecaverification_1", "0x6A0080D2", 0, 0, mov3_cond, ssl1_patch, ssl1_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 full_add_or_replace_pattern("ssl", Patterns("disablecaverification_2", "0x2409437AA0000054", 4, 0, beq_cond, ret1_patch, ret1_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
@@ -1146,6 +1160,7 @@ u32 parse_version(char* version_str) {
 bool (*get_condition_function(const char* name))(u32) {
     if (strcmp(name, "subi_cond") == 0) return subi_cond;
     if (strcmp(name, "subr_cond") == 0) return subr_cond;
+    if (strcmp(name, "cmp_cond") == 0) return cmp_cond;
     if (strcmp(name, "bl_cond") == 0) return bl_cond;
     if (strcmp(name, "tbz_cond") == 0) return tbz_cond;
     if (strcmp(name, "subs_cond") == 0) return subs_cond;
@@ -1172,6 +1187,7 @@ PatchData (*get_patch_function(const char* name))(u32) {
     if (strcmp(name, "debug_flag_off_patch") == 0) return debug_flag_off_patch;
     if (strcmp(name, "nop_patch") == 0) return nop_patch;
     if (strcmp(name, "subs_patch") == 0) return subs_patch;
+    if (strcmp(name, "cmp_patch") == 0) return cmp_patch;
     if (strcmp(name, "mov0_patch") == 0) return mov0_patch;
     if (strcmp(name, "mov2_patch") == 0) return mov2_patch;
     if (strcmp(name, "ssl1_patch") == 0) return ssl1_patch;
@@ -1190,6 +1206,7 @@ bool (*get_applied_function(const char* name))(const u8*, u32) {
     if (strcmp(name, "debug_flag_off_applied") == 0) return debug_flag_off_applied;
     if (strcmp(name, "nop_applied") == 0) return nop_applied;
     if (strcmp(name, "subs_applied") == 0) return subs_applied;
+    if (strcmp(name, "cmp_applied") == 0) return cmp_applied;
     if (strcmp(name, "mov0_applied") == 0) return mov0_applied;
     if (strcmp(name, "mov2_applied") == 0) return mov2_applied;
     if (strcmp(name, "ssl1_applied") == 0) return ssl1_applied;

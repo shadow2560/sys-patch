@@ -191,6 +191,7 @@ GuiToggle() { }
             }},
             {["nim", "nim - 0100000000000025"], {
                 {"nim", "fix_prodinfo_blank_error", true},
+                {"nim", "fix_prodinfo_blank_error_2", true},
             }},
             {["ssl", "Disable CA Verification - apply all"], {
                 {"ssl", "disablecaverification_1", false},
