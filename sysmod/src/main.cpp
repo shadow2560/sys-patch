@@ -134,7 +134,6 @@ struct PatchEntry {
     const u32 max_fw_ver{FW_VER_ANY}; // set to FW_VER_ANY to ignore
 };
 
-/*
 constexpr auto subi_cond(u32 inst) -> bool {
     // # Used on Atmosphère-NX 0.11.0 - 0.12.0.
     const auto type = (inst >> 24) & 0xFF;
@@ -148,7 +147,6 @@ constexpr auto subr_cond(u32 inst) -> bool {
     const auto reg = (inst >> 16) & 0x1F;
     return (type == 0x358) && (reg == 0x01);
 }
-*/
 
 constexpr auto cmp_cond(u32 inst) -> bool {
     const auto type = inst >> 24;
@@ -164,11 +162,9 @@ constexpr auto tbz_cond(u32 inst) -> bool {
     return ((inst >> 24) & 0x7F) == 0x36;
 }
 
-/*
 constexpr auto subs_cond(u32 inst) -> bool {
     return subi_cond(inst) || subr_cond(inst);
 }
-*/
 
 constexpr auto no_cond(u32 inst) -> bool {
     return true;
@@ -226,6 +222,10 @@ constexpr auto b_cond(u32 inst) -> bool {
     return type == 0x14 || type == 0x17;
 }
 
+constexpr auto stp_cond(u32 inst) -> bool {
+	return (inst >> 24) == 0xA9; // stp x29, x30, [sp, #-0x30]!
+}
+
 // to view patches, use https://armconverter.com/?lock=arm64
 constexpr PatchData ret0_patch_data{ "0xE0031F2A" };
 constexpr PatchData ret1_patch_data{ "0x10000014" };
@@ -245,7 +245,7 @@ constexpr PatchData debug_flag_off_patch_data{ "0x29FAFF54" };
 constexpr auto ret0_patch(u32 inst) -> PatchData { return ret0_patch_data; }
 constexpr auto ret1_patch(u32 inst) -> PatchData { return ret1_patch_data; }
 constexpr auto nop_patch(u32 inst) -> PatchData { return nop_patch_data; }
-// constexpr auto subs_patch(u32 inst) -> PatchData { return subi_cond(inst) ? (u8)0x1 : (u8)0x0; }
+constexpr auto subs_patch(u32 inst) -> PatchData { return subi_cond(inst) ? (u8)0x1 : (u8)0x0; }
 constexpr auto mov0_patch(u32 inst) -> PatchData { return mov0_patch_data; }
 constexpr auto mov2_patch(u32 inst) -> PatchData { return mov2_patch_data; }
 constexpr auto cmp_patch(u32 inst) -> PatchData { return cmp_patch_data; }
@@ -274,7 +274,6 @@ constexpr auto nop_applied(const u8* data, u32 inst) -> bool {
     return nop_patch(inst).cmp(data);
 }
 
-/*
 constexpr auto subs_applied(const u8* data, u32 inst) -> bool {
     const auto type_i = (inst >> 24) & 0xFF;
     const auto imm = (inst >> 10) & 0xFFF;
@@ -282,7 +281,6 @@ constexpr auto subs_applied(const u8* data, u32 inst) -> bool {
     const auto reg = (inst >> 16) & 0x1F;
     return ((type_i == 0x71) && (imm == 0x1)) || ((type_r == 0x358) && (reg == 0x0));
 }
-*/
 
 constexpr auto cmp_applied(const u8* data, u32 inst) -> bool {
     return cmp_patch(inst).cmp(data);
@@ -335,8 +333,8 @@ constinit Patterns fs_patterns[] = {
 };
 
 constinit Patterns ldr_patterns[] = {
-    // { "noacidsigchk", "0xFD7B.A8C0035FD6", 16, 2, subs_cond, subs_patch, subs_applied, true, FW_VER_ANY },
-    { "noacidsigchk", "17..009401C0BE121F00", 9, 2, cmp_cond, cmp_patch, cmp_applied, true, FW_VER_ANY }, // 1F00016B - cmp w0, w1 patched to 1F00006B - cmp w0, w0
+    { "noacidsigchk", "0xFD7B.A8C0035FD6", 16, 2, subs_cond, subs_patch, subs_applied, true, FW_VER_ANY },
+    // { "noacidsigchk", "009401C0BE121F00", 6, 2, cmp_cond, cmp_patch, cmp_applied, true, FW_VER_ANY }, // 1F00016B - cmp w0, w1 patched to 1F00006B - cmp w0, w0
     { "debug_flag_on", "0x6022403900010035", -4, 0, no_cond, debug_flag_on_patch, debug_flag_on_applied, false, FW_VER_ANY },
     { "debug_flag_off", "0x6022403900010035", -4, 0, no_cond, debug_flag_off_patch, debug_flag_off_applied, false, FW_VER_ANY },
 };
@@ -344,12 +342,14 @@ constinit Patterns ldr_patterns[] = {
 constinit Patterns es_patterns[] = {
     { "es1", "0x..00.....e0.0091..0094..4092...d1", 16, 0, and_cond, mov0_patch, mov0_applied, true, FW_VER_ANY, MAKEHOSVERSION(1,0,0) },
     { "es2", "0x..00.....e0.0091..0094..4092...a9", 16, 0, and_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(2,0,0), MAKEHOSVERSION(8,1,1) },
-    { "es3", "0x..00...0094a0..d1..ff97.......a9", 16, 0, mov2_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(9,0,0), FW_VER_ANY }, //9.0.0 - 19.0.0+
+    { "es3", "0x..00...0094a0..d1..ff97.......a9", 16, 0, mov2_cond, mov0_patch, mov0_applied, true
+    { "es4", "0x..00....97a0..d1...97e003132a...a9", 16, 0, mov2_cond, mov0_patch, mov0_applied, 
 };
 
 constinit Patterns nifm_patterns[] = {
     { "ctest", "....................F40300AA....F30314AAE00314AA9F0201397F8E04F8", 16, -16, ctest_cond, ctest_patch, ctest_applied, true, FW_VER_ANY, MAKEHOSVERSION(18,1,0) }, // 1.0.0 - 18.1.0
-    { "ctest2", "14...........91...........97...............14", 37, 4, b_cond, ctest_patch, ctest_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY }, //19.0.0+
+    { "ctest2", "14...........91...........97...............14", 41, 0, stp_cond, ctest_patch, ctest_applied, true, MAKEHOSVERSION(19,0,0), MAKEHOSVERSION(20,5,0) }, //19.0.0 - 20.5.0
+    { "ctest3", "14...........91...........97...............14", 49, 0, stp_cond, ctest_patch, ctest_applied, true, MAKEHOSVERSION(21,0,0), FW_VER_ANY }, //21.0.0
 };
 
 constinit Patterns nim_patterns[] = {
@@ -364,7 +364,7 @@ constinit Patterns ssl_patterns[] = {
 };
 
 constinit Patterns erpt_patterns[] = {
-	{ "no_erpt", "0xFD7B02A9FD830091F76305A9", -4, 0, no_cond, erpt_patch, erpt_applied, false, FW_VER_ANY },
+	{ "no_erpt", "0xFD7B02A9FD830091F76305A9", -4, 0, stp_cond, erpt_patch, erpt_applied, false, FW_VER_ANY },
 };
 
 // NOTE: add system titles that you want to be patched to this table.
@@ -378,6 +378,7 @@ constinit PatchEntry patches[] = {
     { "nifm", 0x010000000000000F, nifm_patterns },
     { "nim", 0x0100000000000025, nim_patterns },
     { "ssl", 0x0100000000000024, ssl_patterns },
+    // erpt no write patch
     { "erpt", 0x010000000000002b, erpt_patterns, MAKEHOSVERSION(10,0,0) },
 };
 

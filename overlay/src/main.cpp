@@ -118,10 +118,12 @@ public:
         list->addItem(config_es1.create_list_item("es1"));
         list->addItem(config_es2.create_list_item("es2"));
         list->addItem(config_es3.create_list_item("es3"));
+        list->addItem(config_es4.create_list_item("es4"));
 
         list->addItem(new tsl::elm::CategoryHeader("NIFM - 010000000000000F"));
         list->addItem(config_ctest.create_list_item("ctest"));
         list->addItem(config_ctest2.create_list_item("ctest2"));
+        list->addItem(config_ctest3.create_list_item("ctest3"));
 
         list->addItem(new tsl::elm::CategoryHeader("NIM - 0100000000000025"));
         list->addItem(config_nim.create_list_item("nim"));
@@ -150,8 +152,10 @@ public:
     ConfigEntry config_es1{"es", "es1", true};
     ConfigEntry config_es2{"es", "es2", true};
     ConfigEntry config_es3{"es", "es3", true};
+    ConfigEntry config_es4{"es", "es4", true};
     ConfigEntry config_ctest{"nifm", "ctest", true};
     ConfigEntry config_ctest2{"nifm", "ctest2", true};
+    ConfigEntry config_ctest3{"nifm", "ctest3", true};
     ConfigEntry config_nim{"nim", "nim", true};
     ConfigEntry config_nim2{"nim", "nim2", true};
     ConfigEntry config_ssl1{"ssl", "disablecaverification1", false};
