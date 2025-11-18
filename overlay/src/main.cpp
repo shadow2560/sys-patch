@@ -184,10 +184,12 @@ GuiToggle() { }
                 {"es", "es_1", true},
                 {"es", "es_2", true},
                 {"es", "es_3", true},
+                {"es", "es_4", true},
             }},
             {["nifm", "nifm - 010000000000000F"], {
                 {"nifm", "ctest", true},
                 {"nifm", "ctest_2", true},
+                {"nifm", "ctest_3", true},
             }},
             {["nim", "nim - 0100000000000025"], {
                 {"nim", "fix_prodinfo_blank_error", true},
