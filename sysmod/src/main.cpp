@@ -226,6 +226,15 @@ constexpr auto stp_cond(u32 inst) -> bool {
 	return (inst >> 24) == 0xA9; // stp x29, x30, [sp, #-0x30]!
 }
 
+constexpr auto sub_cond(u32 inst) -> bool {
+    const auto type = inst >> 24;
+    return type == 0xD1; // sub sp, sp, #0x150
+}
+
+constexpr auto bls_cond(u32 inst) -> bool {
+    return (inst >> 24) == 0x54; // b.ls #0xffffffffffffff4c
+}
+
 // to view patches, use https://armconverter.com/?lock=arm64
 constexpr PatchData ret0_patch_data{ "0xE0031F2A" };
 constexpr PatchData ret1_patch_data{ "0x10000014" };
@@ -335,8 +344,8 @@ constinit Patterns fs_patterns[] = {
 constinit Patterns ldr_patterns[] = {
     { "noacidsigchk", "0xFD7B.A8C0035FD6", 16, 2, subs_cond, subs_patch, subs_applied, true, FW_VER_ANY },
     // { "noacidsigchk", "009401C0BE121F00", 6, 2, cmp_cond, cmp_patch, cmp_applied, true, FW_VER_ANY }, // 1F00016B - cmp w0, w1 patched to 1F00006B - cmp w0, w0
-    { "debug_flag_on", "0x6022403900010035", -4, 0, no_cond, debug_flag_on_patch, debug_flag_on_applied, false, FW_VER_ANY },
-    { "debug_flag_off", "0x6022403900010035", -4, 0, no_cond, debug_flag_off_patch, debug_flag_off_applied, false, FW_VER_ANY },
+    { "debug_flag_on", "0x.....22403900010035", 0, 0, bls_cond, debug_flag_on_patch, debug_flag_on_applied, false, FW_VER_ANY },
+    { "debug_flag_off", "0x.....22403900010035", 0, 0, bls_cond, debug_flag_off_patch, debug_flag_off_applied, false, FW_VER_ANY },
 };
 
 constinit Patterns es_patterns[] = {
@@ -364,7 +373,8 @@ constinit Patterns ssl_patterns[] = {
 };
 
 constinit Patterns erpt_patterns[] = {
-	{ "no_erpt", "0xFD7B02A9FD830091F76305A9", -4, 0, stp_cond, erpt_patch, erpt_applied, false, FW_VER_ANY },
+    // { "no_erpt", "0xFD7B02A9FD830091F76305A9", -4, 0, stp_cond, erpt_patch, erpt_applied, false, FW_VER_ANY },
+    { "no_erpt", "0x...D1FD7B02A9FD830091F76305A9", 0, 0, sub_cond, erpt_patch, erpt_applied, false, FW_VER_ANY }, // FF4305D1 - sub sp, sp, #0x150 patched to E0031F2AC0035FD6 - mov w0, wzr, ret 
 };
 
 // NOTE: add system titles that you want to be patched to this table.
