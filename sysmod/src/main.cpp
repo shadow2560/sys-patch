@@ -311,6 +311,15 @@ constexpr auto stp_cond(u32 inst) -> bool {
     return (inst >> 24) == 0xA9; // stp x29, x30, [sp, #-0x30]!
 }
 
+constexpr auto sub_cond(u32 inst) -> bool {
+    const auto type = inst >> 24;
+    return type == 0xD1; // sub sp, sp, #0x150
+}
+
+constexpr auto bls_cond(u32 inst) -> bool {
+    return (inst >> 24) == 0x54; // b.ls #0xffffffffffffff4c
+}
+
 // to view patches, use https://armconverter.com/?lock=arm64
 constexpr PatchData ret0_patch_data{ "0xE0031F2A" };
 constexpr PatchData ret1_patch_data{ "0x10000014" };
@@ -436,8 +445,8 @@ return true;
 
     full_add_or_replace_pattern("ldr", Patterns("noacidsigchk", "009401C0BE121F00", 6, 2, cmp_cond, cmp_patch, cmp_applied, true, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
     // full_add_or_replace_pattern("ldr", Patterns("noacidsigchk", "17..009401C0BE121F00", 9, 2, cmp_cond, cmp_patch, cmp_applied, true, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
-    full_add_or_replace_pattern("ldr", Patterns("debug_flag", "0x6022403900010035", -4, 0, no_cond, debug_flag_patch, debug_flag_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
-    full_add_or_replace_pattern("ldr", Patterns("debug_flag_off", "0x6022403900010035", -4, 0, no_cond, debug_flag_off_patch, debug_flag_off_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("ldr", Patterns("debug_flag", "0x.....22403900010035", 0, 0, bls_cond, debug_flag_patch, debug_flag_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("ldr", Patterns("debug_flag_off", "0x.....22403900010035", 0, 0, bls_cond, debug_flag_off_patch, debug_flag_off_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
     full_add_or_replace_pattern("es", Patterns("es_1", "0x..00.....e0.0091..0094..4092...d1", 16, 0, and_cond, mov0_patch, mov0_applied, true, FW_VER_ANY, MAKEHOSVERSION(1,0,0), FW_VER_ANY, FW_VER_ANY));
     full_add_or_replace_pattern("es", Patterns("es_2", "0x..00.....e0.0091..0094..4092...a9", 16, 0, and_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(2,0,0), MAKEHOSVERSION(8,1,1), FW_VER_ANY, FW_VER_ANY));
@@ -455,7 +464,7 @@ return true;
 full_add_or_replace_pattern("ssl", Patterns("disablecaverification_2", "0x2409437AA0000054", 4, 0, beq_cond, ret1_patch, ret1_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 full_add_or_replace_pattern("ssl", Patterns("disablecaverification_3", "0x88160012", 4, 0, str_cond, ssl2_patch, ssl2_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
-    full_add_or_replace_pattern("erpt", Patterns("no_erpt", "0xFD7B02A9FD830091F76305A9", -4, 0, no_cond, erpt_patch, erpt_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
+    full_add_or_replace_pattern("erpt", Patterns("no_erpt", "0x...D1FD7B02A9FD830091F76305A9", 0, 0, sub_cond, erpt_patch, erpt_applied, false, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY, FW_VER_ANY));
 
     // NOTE: add system titles that you want to be patched to this table.
     // a list of system titles can be found here https://switchbrew.org/wiki/Title_list
@@ -1184,6 +1193,8 @@ bool (*get_condition_function(const char* name))(u32) {
     if (strcmp(name, "ctest_cond") == 0) return ctest_cond;
     if (strcmp(name, "b_cond") == 0) return b_cond;
     if (strcmp(name, "stp_cond") == 0) return stp_cond;
+    if (strcmp(name, "sub_cond") == 0) return sub_cond;
+    if (strcmp(name, "bls_cond") == 0) return bls_cond;
     // Add others conditions functions here...
     return nullptr; // Valeur par défaut si aucune fonction ne correspond
 }
