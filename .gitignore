@@ -12,6 +12,7 @@ firmware
 *.nacp
 *.ovl
 *.nca
+*.bak
 out
 ignoreme
 .vscode/settings.json
