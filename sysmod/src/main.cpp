@@ -40,98 +40,44 @@ struct DebugEventInfo {
 };
 
 template<typename T>
-constexpr void hex_to_bytes(const char* s, T* data, u8& size) {
-    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) s += 2;
-
-    constexpr auto nibble = [](char c) -> u8 {
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= '0' && c <= '9') return c - '0';
-        return 0;
-    };
-
-    while (*s) {
-        u8 high = nibble(*s++);
-        u8 low  = nibble(*s++);
-        data[size++] = (high << 4) | low;
+constexpr void str2hex(const char* s, T* data, u8& size) {
+    // skip leading 0x (if any)
+    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        s += 2;
     }
-}
 
-template<typename T>
-constexpr void pattern_to_bytes(const char* s, T* data, u8& size) {
-    if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) s += 2;
-
-    constexpr auto nibble = [](char c) -> u8 {
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-        if (c >= '0' && c <= '9') return c - '0';
-        return 0xFF; // invalid → will fail match
+    // invalid string will cause a compile-time error due to no return
+    constexpr auto hexstr_2_nibble = [](char c) -> u8 {
+        if (c >= 'A' && c <= 'F') { return c - 'A' + 10; }
+        if (c >= 'a' && c <= 'f') { return c - 'a' + 10; }
+        if (c >= '0' && c <= '9') { return c - '0'; }
     };
 
-    while (*s) {
-        if (*s == '.') {
-            u8 dot_count = 0;
-            while (s[dot_count] == '.') ++dot_count;
-
-            u8 wildcards = dot_count / 2;
-
-            for (u8 i = 0; i < wildcards; ++i) {
-                data[size++] = REGEX_SKIP;
-            }
-
-            s += dot_count;
-
+    // parse and convert string
+    while (*s != '\0') {
+        if (sizeof(T) == sizeof(u16) && *s == '.') {
+            data[size] = REGEX_SKIP;
+            s++;
         } else {
-            u16 value = 0;
-            bool is_wild_high = false;
-            bool is_wild_low  = false;
-
-            // High nibble
-            if (*s == '?') {
-                is_wild_high = true;
-                ++s;
-            } else {
-                value |= nibble(*s++) << 8;
-            }
-
-            // Low nibble
-            if (*s == '?') {
-                is_wild_low = true;
-                ++s;
-            } else {
-                value |= nibble(*s++);
-            }
-
-            if (is_wild_high && is_wild_low) {
-                // ?? → full byte wildcard (same as ..)
-                data[size++] = REGEX_SKIP;
-            } else if (is_wild_high || is_wild_low) {
-                // Partial match: store value with high bit set to indicate mask needed
-                // We'll use: if value >= 0x100 → it's a masked byte
-                // value & 0xFF = actual byte, value >> 8 = mask (0xF0 or 0x0F)
-                u8 actual = value & 0xFF;
-                u8 mask   = is_wild_high ? 0x0F : 0xF0;
-                data[size++] = actual | (static_cast<u16>(mask) << 8);
-            } else {
-                // Exact byte
-                data[size++] = value;
-            }
+            data[size] |= hexstr_2_nibble(*s++) << 4;
+            data[size] |= hexstr_2_nibble(*s++) << 0;
         }
+        size++;
     }
 }
 
 struct PatternData {
     constexpr PatternData(const char* s) {
-        pattern_to_bytes(s, data, size);
+        str2hex(s, data, size);
     }
 
-    u16 data[60]{};
+    u16 data[60]{}; // reasonable max pattern length, adjust as needed
     u8 size{};
 };
 
 struct PatchData {
     constexpr PatchData(const char* s) {
-        hex_to_bytes(s, data, size);
+        str2hex(s, data, size);
     }
 
     template<typename T>
@@ -146,7 +92,7 @@ struct PatchData {
         return !std::memcmp(data, _data, size);
     }
 
-    u8 data[20]{};
+    u8 data[20]{}; // reasonable max patch length, adjust as needed
     u8 size{};
 };
 
@@ -297,40 +243,14 @@ constexpr auto ctest_applied(const u8* data, u32 inst) -> bool {
     return ctest_patch(inst).cmp(data);
 }
 
-// Note: Patterns can compose of byte wildcards represented as ".." or "??". Patterns can also consist of high, or low nibble wildcarding, represented, with the example being wildcarded being "A9" as "A?" or "?9".
-// example 1: just byte wildcarding:
-// C8FE4739 -> C8....39 = 2 bytes wildcarded
-// C8FE4739 -> C8????39 = 2 bytes wildcarded
-// C8FE4739 -> C?F?4??9 = 4 nibbles wildcarded
-// nibble wildcarding must be done with "?", and must not be mixed with ".", ".." should be used when wildcarding an entire byte, or "??", but not a mix of "?." or ".?"
-// a pattern can contain both "..", "??", or nibble wildcarding, as long as one does not mix "?." or "?."
-// patterns should be optimized in such a manner that they yield only one result.
-// patterns might yield results for more firmware versions, but if it yields more than one result (per firmware version), it should be condensed to near similar versions instead which only yields one result.
-// a pattern should not contain the bytes being patched, they should be wildcarded.
-// if the bytes being patched align with the patch partially, then the partial bytes can be in the pattern, the same applies to if the pattern contains the length of the patch.
-// the bytes being tested are defined by the _cond, and does not need to be in the pattern, and shouldn't be in the pattern, if the bytes being tested are also the bytes being patched.
-// () indicate testing, {} indicate what is being patched
-// example:
-// "0x00....0240F9........E8", 6, 0,
-// the bytes being tested, and patch size is the same, 6 from start of pattern, then patch 0 from start of where the test was designated:
-// "0x00....0240F9{(........)}E8"
-// if moving the head from what is being tested, the bytes, if in pattern, should be wildcarded by the length of the patch being applied
-// "0x00....0240F9........E8C8FE4739", 6, 4,
-// example {} should be wildcarded, as those are the bytes being patched, the bytes being tested can in that context contain bytes in the pattern:
-// "0x00....0240F9(......94){E8C8FE47}39", 6, 4,
-// example with wildcarding:
-// "0x00....0240F9(......94){........}39", 6, 4,
-//
-// designing new patterns should ideally conform to specification above.
-
 constinit Patterns fs_patterns[] = {
     { "noacidsigchk_1.0.0-9.2.0", "0xC8FE4739", -24, 0, bl_cond, ret0_patch, ret0_applied, true, FW_VER_ANY, MAKEHOSVERSION(9,2,0) }, // moved to loader 10.0.0
     { "noacidsigchk_1.0.0-9.2.0", "0x0210911F000072", -5, 0, bl_cond, ret0_patch, ret0_applied, true, FW_VER_ANY, MAKEHOSVERSION(9,2,0) }, // moved to loader 10.0.0
-    { "noncasigchk_1.0.0-3.0.2", "0x88..42..58", -4, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(1,0,0), MAKEHOSVERSION(3,0,2) },
-    { "noncasigchk_4.0.0-16.1.0", "0x1E4839....00......0054", -17, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(4,0,0), MAKEHOSVERSION(16,1,0) },
-    { "noncasigchk_17.0.0+", "0x0694....00..42..0091", -18, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(17,0,0), FW_VER_ANY },
-    { "nocntchk_1.0.0-18.1.0", "0x40F9........081C00121F05", 2, 0, bl_cond, ret0_patch, ret0_applied, true, MAKEHOSVERSION(1,0,0), MAKEHOSVERSION(18,1,0) },
-    { "nocntchk_19.0.0+", "0x40F9............40B9091C", 2, 0, bl_cond, ret0_patch, ret0_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY },
+    { "noncasigchk_10.0.0-16.1.0", "0x1E48391F.0071..0054", -17, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(10,0,0), MAKEHOSVERSION(16,1,0) },
+    { "noncasigchk_17.0.0+", "0x0694..00.42.0091", -18, 0, tbz_cond, nop_patch, nop_applied, true, MAKEHOSVERSION(17,0,0), FW_VER_ANY },
+    { "nocntchk_10.0.0-18.1.0", "0x00..0240F9....08.....00...00...0037", 6, 0, bl_cond, ret0_patch, ret0_applied, true, MAKEHOSVERSION(10,0,0), MAKEHOSVERSION(18,1,0) },
+    { "nocntchk_19.0.0-20.5.0", "0x00..0240F9....08.....00...00...0054", 6, 0, bl_cond, ret0_patch, ret0_applied, true, MAKEHOSVERSION(19,0,0), MAKEHOSVERSION(20,5,0) },
+    { "nocntchk_21.0.0+", "0x00..0240F9....E8.....00...00...0054", 6, 0, bl_cond, ret0_patch, ret0_applied, true, MAKEHOSVERSION(21,0,0), FW_VER_ANY },
 };
 
 constinit Patterns ldr_patterns[] = {
@@ -338,20 +258,20 @@ constinit Patterns ldr_patterns[] = {
 };
 
 constinit Patterns erpt_patterns[] = {
-    { "no_erpt", "0xFD7B02A9FD830091F76305A9", -4, 0, sub_cond, mov0_ret_patch, mov0_ret_applied, true, FW_VER_ANY }, // FF4305D1 - sub sp, sp, #0x150 patched to E0031F2AC0035FD6 - mov w0, wzr, ret 
+    { "no_erpt", "0x...D1FD7B02A9FD830091F76305A9", 0, 0, sub_cond, mov0_ret_patch, mov0_ret_applied, true, FW_VER_ANY }, // FF4305D1 - sub sp, sp, #0x150 patched to E0031F2AC0035FD6 - mov w0, wzr, ret 
 };
 
 constinit Patterns es_patterns[] = {
-    { "es_1.0.0-8.1.1", "0x0091....0094..7E4092", 10, 0, es_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(1,0,0), MAKEHOSVERSION(8,1,1) },
-    { "es_9.0.0-11.0.1", "0x00..........A0....D1....FF97", 14, 0, es_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(9,0,0), MAKEHOSVERSION(11,0,1) },
-    { "es_12.0.0-18.1.0", "0x02........D2..52....0091", 32, 0, es_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(12,0,0), MAKEHOSVERSION(18,1,0) },
-    { "es_19.0.0+", "0xA1........031F2A....0091", 32, 0, es_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY },
+    { "es_1.0.0-8.1.1", "0x....E8.00...FF97.0300AA..00.....E0.0091..0094.7E4092.......A9", 36, 0, es_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(1,0,0), MAKEHOSVERSION(8,1,1) },
+    { "es_9.0.0-11.0.1", "0x00...............00.....A0..D1...97.......A9", 30, 0, es_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(9,0,0), MAKEHOSVERSION(11,0,1) },
+    { "es_12.0.0-18.1.0", "0x02.00...........00...00.....A0..D1...97.......A9", 32, 0, es_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(12,0,0), MAKEHOSVERSION(18,1,0) },
+    { "es_19.0.0+", "0xA1.00...........00...00.....A0..D1...97.......A9", 32, 0, es_cond, mov0_patch, mov0_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY },
 };
 
 constinit Patterns olsc_patterns[] = {
-    { "olsc_6.0.0-14.1.2", "0x00..73....F9....4039", 42, 0, bl_cond, ret1_patch, ret1_applied, true, MAKEHOSVERSION(6,0,0), MAKEHOSVERSION(14,1,2) },
-    { "olsc_15.0.0-18.1.0", "0x00..73....F9....4039", 38, 0, bl_cond, ret1_patch, ret1_applied, true, MAKEHOSVERSION(15,0,0), MAKEHOSVERSION(18,1,0) },
-    { "olsc_19.0.0+", "0x00..73....F9....4039", 42, 0, bl_cond, ret1_patch, ret1_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY },
+    { "olsc_6.0.0-14.1.2", "0x00.73..F968024039..00...00", 42, 0, bl_cond, ret1_patch, ret1_applied, true, MAKEHOSVERSION(6,0,0), MAKEHOSVERSION(14,1,2) },
+    { "olsc_15.0.0-18.1.0", "0x00.73..F968024039..00...00", 38, 0, bl_cond, ret1_patch, ret1_applied, true, MAKEHOSVERSION(15,0,0), MAKEHOSVERSION(18,1,0) },
+    { "olsc_19.0.0+", "0x00.73..F968024039..00...00", 42, 0, bl_cond, ret1_patch, ret1_applied, true, MAKEHOSVERSION(19,0,0), FW_VER_ANY },
 };
 
 constinit Patterns nifm_patterns[] = {
@@ -360,12 +280,11 @@ constinit Patterns nifm_patterns[] = {
 };
 
 constinit Patterns nim_patterns[] = {
-    { "blankcal0crashfix_17.0.0+", "0x00351F2003D5..............................97....0094....00..........61", 6, 0, adr_cond, mov2_patch, mov2_applied, true, MAKEHOSVERSION(17,0,0), FW_VER_ANY },
-    { "blockfirmwareupdates_1.0.0-5.1.0", "0x1139F3", -30, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(1,0,0), MAKEHOSVERSION(5,1,0) },
-    { "blockfirmwareupdates_6.0.0-6.2.0", "0xF30301AA..4E", -40, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(6,0,0), MAKEHOSVERSION(6,2,0) },
-    { "blockfirmwareupdates_7.0.0-10.2.0", "0xF30301AA014C", -36, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(7,0,0), MAKEHOSVERSION(10,2,0) },
-    { "blockfirmwareupdates_11.0.0-11.0.1", "0x9AF0....................C0035FD6", 16, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(11,0,0), MAKEHOSVERSION(11,0,1) },
-    { "blockfirmwareupdates_12.0.0+", "0x41....4C............C0035FD6", 14, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(12,0,0), FW_VER_ANY },
+    { "blankcal0crashfix_17.0.0+", "0x00351F2003D5...............97..0094..00.....61", 6, 0, adr_cond, mov2_patch, mov2_applied, true, MAKEHOSVERSION(17,0,0), FW_VER_ANY },
+    { "blockfirmwareupdates_1.0.0-5.1.0", "0x1139F30301AA81.40F9E0.1191", -30, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(1,0,0), MAKEHOSVERSION(5,1,0) },
+    { "blockfirmwareupdates_6.0.0-6.2.0", "0xF30301AA.4E40F9E0..91", -40, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(6,0,0), MAKEHOSVERSION(6,2,0) },
+    { "blockfirmwareupdates_7.0.0-11.0.1", "0xF30301AA014C40F9F40300AAE0..91", -36, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(7,0,0), MAKEHOSVERSION(11,0,1) },
+    { "blockfirmwareupdates_12.0.0+", "0x280841F9084C00F9E0031F.C0035FD6", 16, 0, block_fw_updates_cond, mov0_ret_patch, mov0_ret_applied, true, MAKEHOSVERSION(12,0,0), FW_VER_ANY },
 };
 
 // NOTE: add system titles that you want to be patched to this table.
@@ -434,22 +353,8 @@ void patcher(Handle handle, const u8* data, size_t data_size, u64 addr, std::spa
             // skipping over any bytes if the value is REGEX_SKIP
             u32 count{};
             while (count < p.byte_pattern.size) {
-                u16 pattern_entry = p.byte_pattern.data[count];
-                u8 memory_byte    = data[i + count];
-
-                if (pattern_entry == REGEX_SKIP) {
-                    // full wildcard — always matches
-                } else if (pattern_entry > 0xFF) {
-                    // masked nibble match
-                    u8 expected = pattern_entry & 0xFF;
-                    u8 mask     = pattern_entry >> 8;
-                    if ((memory_byte & mask) != (expected & mask)) {
-                        break;
-                    }
-                } else {
-                    if (memory_byte != pattern_entry) {
-                        break;
-                    }
+                if (p.byte_pattern.data[count] != data[i + count] && p.byte_pattern.data[count] != REGEX_SKIP) {
+                    break;
                 }
                 count++;
             }
@@ -855,9 +760,6 @@ ini_rename(temp_path, ini_path);
 } // namespace
 
 int main(int argc, char* argv[]) {
-    constexpr auto ini_path = "/config/sys-patch/config.ini";
-    constexpr auto log_path = "/config/sys-patch/log.ini";
-
     create_dir("/config/");
     create_dir("/config/sys-patch/");
     ini_remove(log_path);
@@ -867,7 +769,7 @@ int main(int argc, char* argv[]) {
     patch_emummc = ini_load_or_write_default("options", "patch_emummc", 1, ini_path);
     enable_logging = ini_load_or_write_default("options", "enable_logging", 1, ini_path);
     VERSION_SKIP = ini_load_or_write_default("options", "version_skip", 1, ini_path);
-	CLEAN_CONFIG = ini_load_or_write_default("options", "clean_config", 1, ini_path);
+    CLEAN_CONFIG = ini_load_or_write_default("options", "clean_config", 1, ini_path);
 
     if (CLEAN_CONFIG) {
         int rc = clean_config_file();
