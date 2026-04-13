@@ -1,6 +1,7 @@
 #define TESLA_INIT_IMPL // If you have more than one file using the tesla header, only define this in the main one
 #define STBTT_STATIC
 #include <tesla.hpp>    // The Tesla Header
+#include <string>
 #include <string_view>
 #include "minIni/minIni.h"
 
@@ -8,6 +9,87 @@ namespace {
 
 constexpr auto CONFIG_PATH = "/config/sys-patch/config.ini";
 constexpr auto LOG_PATH = "/config/sys-patch/log.ini";
+
+auto split_log_value(std::string_view value) -> std::pair<std::string, std::string> {
+    if (value.empty()) {
+        return {{}, {}};
+    }
+
+    const auto offset_start = value.rfind(" (0x");
+    if (offset_start == std::string_view::npos || value.back() != ')') {
+        return {std::string{value}, {}};
+    }
+
+    return {
+        std::string{value.substr(0, offset_start)},
+        std::string{value.substr(offset_start + 1, value.size() - offset_start - 2)}
+    };
+}
+
+class ColouredListItem : public tsl::elm::ListItem {
+public:
+    ColouredListItem(const std::string& text, const std::string& value, tsl::Color value_colour)
+        : tsl::elm::ListItem(text, value), m_value_colour(value_colour) {
+    }
+
+    void draw(tsl::gfx::Renderer *renderer) override {
+        if (this->m_touched && Element::getInputMode() == tsl::InputMode::Touch) {
+            renderer->drawRect(ELEMENT_BOUNDS(this), a(tsl::style::color::ColorClickAnimation));
+        }
+
+        if (this->m_maxWidth == 0) {
+            if (!this->m_value.empty()) {
+                auto [valueWidth, valueHeight] = renderer->drawString(this->m_value.c_str(), false, 0, 0, 20, tsl::style::color::ColorTransparent);
+                this->m_maxWidth = this->getWidth() - valueWidth - 70;
+            } else {
+                this->m_maxWidth = this->getWidth() - 40;
+            }
+
+            auto [width, height] = renderer->drawString(this->m_text.c_str(), false, 0, 0, 23, tsl::style::color::ColorTransparent);
+            this->m_trunctuated = width > this->m_maxWidth;
+
+            if (this->m_trunctuated) {
+                this->m_scrollText = this->m_text + "        ";
+                auto [scrollWidth, scrollHeight] = renderer->drawString(this->m_scrollText.c_str(), false, 0, 0, 23, tsl::style::color::ColorTransparent);
+                this->m_scrollText += this->m_text;
+                this->m_textWidth = scrollWidth;
+                this->m_ellipsisText = renderer->limitStringLength(this->m_text, false, 22, this->m_maxWidth);
+            } else {
+                this->m_textWidth = width;
+            }
+        }
+
+        renderer->drawRect(this->getX(), this->getY(), this->getWidth(), 1, a(tsl::style::color::ColorFrame));
+        renderer->drawRect(this->getX(), this->getTopBound(), this->getWidth(), 1, a(tsl::style::color::ColorFrame));
+
+        if (this->m_trunctuated) {
+            if (this->m_focused) {
+                renderer->enableScissoring(this->getX(), this->getY(), this->m_maxWidth + 40, this->getHeight());
+                renderer->drawString(this->m_scrollText.c_str(), false, this->getX() + 20 - this->m_scrollOffset, this->getY() + 45, 23, tsl::style::color::ColorText);
+                renderer->disableScissoring();
+                if (this->m_scrollAnimationCounter == 90) {
+                    if (this->m_scrollOffset == this->m_textWidth) {
+                        this->m_scrollOffset = 0;
+                        this->m_scrollAnimationCounter = 0;
+                    } else {
+                        this->m_scrollOffset++;
+                    }
+                } else {
+                    this->m_scrollAnimationCounter++;
+                }
+            } else {
+                renderer->drawString(this->m_ellipsisText.c_str(), false, this->getX() + 20, this->getY() + 45, 23, a(tsl::style::color::ColorText));
+            }
+        } else {
+            renderer->drawString(this->m_text.c_str(), false, this->getX() + 20, this->getY() + 45, 23, a(tsl::style::color::ColorText));
+        }
+
+        renderer->drawString(this->m_value.c_str(), false, this->getX() + this->m_maxWidth + 45, this->getY() + 45, 20, a(m_value_colour));
+    }
+
+private:
+    tsl::Color m_value_colour;
+};
 
 auto does_file_exist(const char* path) -> bool {
     Result rc{};
@@ -89,7 +171,7 @@ public:
     ConfigEntry config_patch_emummc{"options", "patch_emummc", true};
     ConfigEntry config_logging{"options", "enable_logging", true};
     ConfigEntry config_version_skip{"options", "version_skip", true};
-ConfigEntry config_clean_config{"options", "clean_config", true};
+    ConfigEntry config_clean_config{"options", "clean_config", true};
 };
 
 class GuiToggle final : public tsl::Gui {
@@ -191,8 +273,9 @@ public:
             ini_browse([](const mTCHAR *Section, const mTCHAR *Key, const mTCHAR *Value, void *UserData){
                 auto user = (CallbackUser*)UserData;
                 std::string_view value{Value};
+                const auto [status, detail] = split_log_value(value);
 
-                if (value == "Skipped") {
+                if (status == "Skipped") {
                     return 1;
                 }
 
@@ -207,22 +290,20 @@ public:
                 constexpr tsl::Color colour_unpatched{F(250), F(90), F(58), F(255)};
                 #undef F
 
-                if (value.starts_with("Patched")) {
-                    auto *item = new tsl::elm::ListItem(Key);
-                    item->setValue("Patched", true);
-                    user->list->addItem(item);
-                } else if (value.starts_with("Unpatched") || value.starts_with("Disabled")) {
-                    auto *item = new tsl::elm::ListItem(Key);
-                    item->setValue(Value, true);
-                    user->list->addItem(item);
+                if (status.starts_with("Patched")) {
+                    const auto is_sys_patch = status.ends_with("(sys-patch)");
+                    const auto display_value = detail.empty() ? std::string{"Patched"} : "Patched @ " + detail;
+                    user->list->addItem(new ColouredListItem(
+                        Key,
+                        display_value,
+                        is_sys_patch ? colour_syspatch : colour_file
+                    ));
+                } else if (status.starts_with("Unpatched") || status.starts_with("Disabled")) {
+                    user->list->addItem(new ColouredListItem(Key, Value, colour_unpatched));
                 } else if (user->last_section == "stats") {
-                    auto *item = new tsl::elm::ListItem(Key);
-                    item->setValue(Value, true);
-                    user->list->addItem(item);
+                    user->list->addItem(new ColouredListItem(Key, Value, tsl::style::color::ColorDescription));
                 } else {
-                    auto *item = new tsl::elm::ListItem(Key);
-                    item->setValue(Value, true);
-                    user->list->addItem(item);
+                    user->list->addItem(new ColouredListItem(Key, Value, tsl::style::color::ColorText));
                 }
 
                 return 1;
